@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, initial-scale=1">
+    <title>Solar Dominion</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Title Screen
+     ═══════════════════════════════════════════════════════════ -->
+<div id="titleScreen">
+    <h1>SOLAR DOMINION</h1>
+    <p class="subtitle">The Fate of the Solar System Is in Your Hands</p>
+    <p class="lore">
+        Year 2202. Earth colonized the Moon in 2048 and Mars in 2122.
+        Now, 80 years later, Earth and Mars are at war.
+        You are a pilot from Luna Colony — the neutral ground.
+        Will you broker peace, or help one side win?
+    </p>
+    <div class="title-buttons">
+        <button id="btnNewGame" class="title-btn">▶ New Game</button>
+        <button id="btnContinue" class="title-btn" style="display:none">↻ Continue</button>
+        <button id="btnLoadGame" class="title-btn">📂 Load Game</button>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Game Container
+     ═══════════════════════════════════════════════════════════ -->
+<div id="gameContainer">
+    <canvas id="gameCanvas" width="1920" height="1080"></canvas>
+    <canvas id="minimapCanvas" width="240" height="240"></canvas>
+
+    <!-- Nav Bar -->
+    <div id="navBar">
+        <button id="btnMap" class="nav-btn">🗺️ Map</button>
+        <button id="btnFleet" class="nav-btn">🚀 Fleet</button>
+        <button id="btnDiplomacy" class="nav-btn">🤝 Diplo</button>
+        <button id="btnLog" class="nav-btn">📜 Log</button>
+        <button id="btnSave" class="nav-btn">💾 Save</button>
+    </div>
+
+    <!-- UI Overlay (click-blocker) -->
+    <div id="uiOverlay"></div>
+
+    <!-- Panel Container -->
+    <div id="panelContainer">
+        <div id="panelHeader">
+            <span id="panelTitle">Panel</span>
+            <button id="panelClose">✕</button>
+        </div>
+        <div id="panelContent"></div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toastContainer"></div>
+
+    <!-- Ship Editor Overlay -->
+    <div id="shipEditorOverlay">
+        <div id="shipEditorStatsBar"></div>
+        <div id="shipEditorPartDetail"></div>
+        <canvas id="shipEditorCanvas" width="1420" height="880"></canvas>
+        <div id="shipEditorShop"></div>
+        <div id="dragGhost"></div>
+    </div>
+
+    <!-- Story Overlay -->
+    <div id="storyOverlay">
+        <div class="story-box">
+            <h2 id="storyTitle">Chapter</h2>
+            <p id="storyText">Story text...</p>
+            <button id="storyClose">Continue →</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     Scripts (load order matters)
+     ═══════════════════════════════════════════════════════════ -->
+<script src="js/lz-string.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/events.js"></script>
+<script src="js/input.js"></script>
+<script src="js/modules/world.js"></script>
+<script src="js/modules/shipGrid.js"></script>
+<script src="js/modules/shipTemplates.js"></script>
+<script src="js/modules/ship.js"></script>
+<script src="js/modules/factions.js"></script>
+<script src="js/modules/economy.js"></script>
+<script src="js/modules/combat.js"></script>
+<script src="js/modules/fleet.js"></script>
+<script src="js/modules/missions.js"></script>
+<script src="js/modules/diplomacy.js"></script>
+<script src="js/modules/stations.js"></script>
+<script src="js/modules/story.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/save.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
