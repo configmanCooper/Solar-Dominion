@@ -323,13 +323,46 @@ var World = (function () {
             npc.destX = npc.patrolCenter.x + (Math.random() - 0.5) * npc.patrolRadius * 2;
             npc.destY = npc.patrolCenter.y + (Math.random() - 0.5) * npc.patrolRadius * 2;
         } else if (npc.behavior === 'trade') {
-            // Pick a dockable location to trade at
+            // Smart routing: if carrying cargo, prefer locations that consume it
             var dockable = [];
             for (var li = 0; li < _locations.length; li++) {
                 if (_locations[li].dockable) dockable.push(_locations[li]);
             }
             if (dockable.length > 0) {
-                var loc = dockable[Math.floor(Math.random() * dockable.length)];
+                var loc = null;
+                var cargoKeys = npc.cargo ? Object.keys(npc.cargo) : [];
+                var hasGoods = cargoKeys.length > 0 && cargoKeys.some(function(k) { return npc.cargo[k] > 0; });
+
+                if (hasGoods) {
+                    // Score locations by how much they want what we carry
+                    var best = null, bestScore = -1;
+                    for (var di = 0; di < dockable.length; di++) {
+                        var dLoc = dockable[di];
+                        var dEcon = Config.LOCATION_ECONOMY[dLoc.id];
+                        if (!dEcon || !dEcon.consumes) continue;
+                        var score = 0;
+                        for (var ci = 0; ci < cargoKeys.length; ci++) {
+                            if (dEcon.consumes[cargoKeys[ci]]) {
+                                score += npc.cargo[cargoKeys[ci]] * (dEcon.consumes[cargoKeys[ci]] || 1);
+                                // Bonus for low stock
+                                var stk = Economy.getStock(dLoc.id, cargoKeys[ci]);
+                                var sCap = dEcon.stockCapacity || 200;
+                                if (stk < sCap * 0.3) score += 5;
+                            }
+                        }
+                        if (score > bestScore) { bestScore = score; best = dLoc; }
+                    }
+                    loc = best || dockable[Math.floor(Math.random() * dockable.length)];
+                } else {
+                    // No cargo: go to a producer location to pick up goods
+                    var producers = dockable.filter(function(d) {
+                        var e = Config.LOCATION_ECONOMY[d.id];
+                        return e && e.produces && Object.keys(e.produces).length > 0;
+                    });
+                    loc = producers.length > 0
+                        ? producers[Math.floor(Math.random() * producers.length)]
+                        : dockable[Math.floor(Math.random() * dockable.length)];
+                }
                 npc.destX = loc.x + (Math.random() - 0.5) * 60;
                 npc.destY = loc.y + (Math.random() - 0.5) * 60;
                 npc.tradeTarget = loc.id;
@@ -363,31 +396,41 @@ var World = (function () {
         if (!locEcon) return;
         if (!npc.cargo) npc.cargo = {};
 
-        // Drop off goods this location consumes
+        // Drop off ALL goods this location consumes
         if (locEcon.consumes) {
             var consKeys = Object.keys(locEcon.consumes);
             for (var c = 0; c < consKeys.length; c++) {
                 var cRes = consKeys[c];
                 if (npc.cargo[cRes] && npc.cargo[cRes] > 0) {
-                    var deliver = Math.min(npc.cargo[cRes], 2 + Math.floor(Math.random() * 3));
-                    Economy.npcDeliver(loc.id, cRes, deliver);
-                    npc.cargo[cRes] -= deliver;
+                    var delivered = Economy.npcDeliver(loc.id, cRes, npc.cargo[cRes]);
+                    npc.cargo[cRes] -= delivered;
                     if (npc.cargo[cRes] <= 0) delete npc.cargo[cRes];
                 }
             }
         }
 
-        // Pick up goods this location produces (surplus)
+        // Pick up surplus goods (multiple resources, larger amounts)
         if (locEcon.produces) {
             var prodKeys = Object.keys(locEcon.produces);
-            if (prodKeys.length > 0) {
-                var pickRes = prodKeys[Math.floor(Math.random() * prodKeys.length)];
+            var cargoTotal = 0;
+            for (var k in npc.cargo) cargoTotal += npc.cargo[k];
+            var maxCargo = 40; // NPC cargo capacity
+
+            for (var p = 0; p < prodKeys.length && cargoTotal < maxCargo; p++) {
+                var pickRes = prodKeys[p];
                 var stock = Economy.getStock(loc.id, pickRes);
-                if (stock > 20) {
-                    var take = Math.min(3 + Math.floor(Math.random() * 3), stock - 15);
+                var cap = (locEcon.stockCapacity || 200);
+                // Pick up if stock > 30% of capacity (leave some for player/others)
+                if (stock > cap * 0.3) {
+                    var take = Math.min(
+                        5 + Math.floor(Math.random() * 8),
+                        stock - Math.floor(cap * 0.25),
+                        maxCargo - cargoTotal
+                    );
                     if (take > 0) {
-                        Economy.npcPickup(loc.id, pickRes, take);
-                        npc.cargo[pickRes] = (npc.cargo[pickRes] || 0) + take;
+                        var taken = Economy.npcPickup(loc.id, pickRes, take);
+                        npc.cargo[pickRes] = (npc.cargo[pickRes] || 0) + taken;
+                        cargoTotal += taken;
                     }
                 }
             }

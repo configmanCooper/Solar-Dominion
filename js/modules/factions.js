@@ -9,17 +9,94 @@ var Factions = (function () {
     var _factions = {};
     var _playerRep = {};
     var _strategyEvalTimer = 0;
+    var _buildTimers = {}; // per-faction build state
     var STRATEGY_EVAL_INTERVAL = 600; // evaluate every ~60 seconds
+    var BUILD_CHECK_INTERVAL = 300;   // check build AI every ~30 seconds
+    var _buildCheckTimer = 0;
+
+    // Ship classes factions can build — cost materials from home location stocks
+    var FACTION_SHIP_CLASSES = {
+        patrol_corvette: {
+            name: 'Patrol Corvette',
+            buildTime: 150,  // ticks (~15 sec)
+            militaryPower: 3,
+            materials: { metal: 8, electronics: 3, construction_mats: 2 },
+            credits: 2000,
+            priority: 'military', // only built by military-leaning factions
+            minWarHawk: 0
+        },
+        assault_frigate: {
+            name: 'Assault Frigate',
+            buildTime: 300,
+            militaryPower: 8,
+            materials: { metal: 15, refined_metals: 6, electronics: 5, weapons_components: 4 },
+            credits: 8000,
+            priority: 'military',
+            minWarHawk: 30
+        },
+        battle_cruiser: {
+            name: 'Battle Cruiser',
+            buildTime: 600,
+            militaryPower: 20,
+            materials: { metal: 30, refined_metals: 15, electronics: 10, weapons_components: 10, advanced_components: 5, shield_components: 4 },
+            credits: 25000,
+            priority: 'military',
+            minWarHawk: 50
+        },
+        carrier: {
+            name: 'Carrier',
+            buildTime: 900,
+            militaryPower: 30,
+            materials: { metal: 50, refined_metals: 20, electronics: 15, advanced_components: 8, weapons_components: 6, data_cores: 2 },
+            credits: 50000,
+            priority: 'military',
+            minWarHawk: 60
+        },
+        trade_hauler: {
+            name: 'Trade Hauler',
+            buildTime: 100,
+            militaryPower: 0,
+            economyBoost: 3,
+            materials: { metal: 6, construction_mats: 4, electronics: 2 },
+            credits: 1500,
+            priority: 'economic',
+            minWarHawk: 0
+        },
+        diplomatic_vessel: {
+            name: 'Diplomatic Vessel',
+            buildTime: 200,
+            militaryPower: 1,
+            diplomacyBoost: 2,
+            materials: { metal: 5, electronics: 4, luxury_goods: 3, cultural_artifacts: 1 },
+            credits: 5000,
+            priority: 'diplomatic',
+            minWarHawk: 0
+        },
+        research_ship: {
+            name: 'Research Ship',
+            buildTime: 250,
+            militaryPower: 1,
+            economyBoost: 2,
+            materials: { metal: 8, electronics: 8, advanced_components: 4, data_cores: 2 },
+            credits: 10000,
+            priority: 'economic',
+            minWarHawk: 0
+        }
+    };
 
     function init() {
         _factions = {};
         _strategyEvalTimer = 0;
+        _buildCheckTimer = 0;
+        _buildTimers = {};
+        _buildTimers[Config.FACTION.EARTH] = { building: null, timer: 0, queue: [], shipsBuilt: [] };
+        _buildTimers[Config.FACTION.MARS] = { building: null, timer: 0, queue: [], shipsBuilt: [] };
 
         _factions[Config.FACTION.EARTH] = {
             id: Config.FACTION.EARTH,
             name: 'Earth Alliance',
             description: 'Industrial powerhouse with conventional military might.',
-            strengths: { shields: 1.2, shipCost: 0.8, crew: 1.3 },
+            strengths: { shields: 1.2, shipCost: 0.9, crew: 1.3 },
             militaryPower: 80,
             economy: 90,
             atWar: true,
@@ -262,6 +339,198 @@ var Factions = (function () {
         Events.emit('faction_leaning_changed', { faction: neutralFactionId, leaning: side });
     }
 
+    // ── Faction Ship Building AI ──────────────────────────────
+
+    function _getHomeLocation(factionId) {
+        if (factionId === Config.FACTION.EARTH) return 'earth';
+        if (factionId === Config.FACTION.MARS) return 'mars';
+        return null;
+    }
+
+    function _canBuildShip(factionId, shipClassId) {
+        var cls = FACTION_SHIP_CLASSES[shipClassId];
+        if (!cls) return false;
+        var faction = _factions[factionId];
+        if (!faction) return false;
+        // Check warHawk threshold
+        if (cls.priority === 'military' && faction.warHawk < cls.minWarHawk) return false;
+        // Diplomatic ships need diplomacy > 30
+        if (cls.priority === 'diplomatic' && faction.diplomacy < 30) return false;
+
+        var homeLoc = _getHomeLocation(factionId);
+        if (!homeLoc) return false;
+
+        // Check all material requirements against location stocks
+        for (var mat in cls.materials) {
+            if (Economy.getStock(homeLoc, mat) < cls.materials[mat]) return false;
+        }
+        return true;
+    }
+
+    function _consumeShipMaterials(factionId, shipClassId) {
+        var cls = FACTION_SHIP_CLASSES[shipClassId];
+        var homeLoc = _getHomeLocation(factionId);
+        if (!cls || !homeLoc) return false;
+
+        // Verify all materials available first
+        for (var mat in cls.materials) {
+            if (Economy.getStock(homeLoc, mat) < cls.materials[mat]) return false;
+        }
+        // Consume
+        for (var mat2 in cls.materials) {
+            Economy.consumeStock(homeLoc, mat2, cls.materials[mat2]);
+        }
+        return true;
+    }
+
+    function _decideBuild(factionId) {
+        var faction = _factions[factionId];
+        if (!faction) return null;
+        var bt = _buildTimers[factionId];
+        if (!bt || bt.building) return null; // already building
+
+        var enemy = _factions[faction.enemy];
+        var strategies = getActiveStrategies(factionId);
+        var homeLoc = _getHomeLocation(factionId);
+
+        // Determine what types of ships to prioritize
+        var wantMilitary = false, wantEconomic = false, wantDiplomatic = false;
+        for (var i = 0; i < strategies.length; i++) {
+            var t = strategies[i].type;
+            if (t === 'military' || t === 'covert') wantMilitary = true;
+            if (t === 'economic') wantEconomic = true;
+            if (t === 'diplomatic') wantDiplomatic = true;
+        }
+
+        // Always want military if enemy is stronger
+        if (enemy && faction.militaryPower < enemy.militaryPower) wantMilitary = true;
+        // Default to military if warHawk > 50
+        if (faction.warHawk > 50) wantMilitary = true;
+
+        // Score each buildable ship class
+        var best = null, bestScore = -1;
+        for (var clsId in FACTION_SHIP_CLASSES) {
+            if (!_canBuildShip(factionId, clsId)) continue;
+            var cls = FACTION_SHIP_CLASSES[clsId];
+
+            // Stock-aware throttling: penalize if building would drain key resources below 20%
+            var stockPenalty = 1.0;
+            if (homeLoc) {
+                var locEcon = Config.LOCATION_ECONOMY[homeLoc];
+                var sCap = (locEcon && locEcon.stockCapacity) || 200;
+                for (var mat in cls.materials) {
+                    var curStock = Economy.getStock(homeLoc, mat);
+                    var afterBuild = curStock - cls.materials[mat];
+                    if (afterBuild < sCap * 0.15) stockPenalty *= 0.3; // heavily penalize
+                    else if (afterBuild < sCap * 0.3) stockPenalty *= 0.6;
+                }
+            }
+
+            var score = 0;
+            if (cls.priority === 'military' && wantMilitary) {
+                score = cls.militaryPower * 2;
+                if (enemy && faction.militaryPower < enemy.militaryPower - 10) score *= 1.5;
+            } else if (cls.priority === 'economic' && wantEconomic) {
+                score = (cls.economyBoost || 0) * 3 + 2;
+            } else if (cls.priority === 'diplomatic' && wantDiplomatic) {
+                score = (cls.diplomacyBoost || 0) * 3 + 3;
+            } else {
+                score = 1;
+            }
+
+            score *= stockPenalty;
+            score *= (0.8 + Math.random() * 0.4);
+
+            if (score > bestScore) { bestScore = score; best = clsId; }
+        }
+
+        // Don't build if best score is too low (resource scarcity)
+        if (bestScore < 0.5) return null;
+
+        return best;
+    }
+
+    function _startBuild(fId, bt) {
+        var chosen = _decideBuild(fId);
+        if (!chosen) return;
+        if (!_consumeShipMaterials(fId, chosen)) return;
+        bt.building = chosen;
+        var baseBuildTime = FACTION_SHIP_CLASSES[chosen].buildTime;
+        bt.timer = baseBuildTime;
+        bt.originalBuildTime = baseBuildTime;
+        // Apply faction strengths (Earth: shipCost 0.9 = 10% faster, not 0.8)
+        var faction = _factions[fId];
+        if (faction && faction.strengths && faction.strengths.shipCost) {
+            bt.timer = Math.round(bt.timer * (0.5 + faction.strengths.shipCost * 0.5));
+            // Dampened: 0.8 → 0.9 multiplier instead of raw 0.8
+        }
+        bt.originalBuildTime = bt.timer;
+        Events.emit('faction_ship_building', {
+            faction: fId,
+            shipClass: chosen,
+            shipName: FACTION_SHIP_CLASSES[chosen].name,
+            buildTime: bt.timer
+        });
+    }
+
+    function _tickBuild() {
+        _buildCheckTimer++;
+
+        var factionIds = [Config.FACTION.EARTH, Config.FACTION.MARS];
+        for (var fi = 0; fi < factionIds.length; fi++) {
+            var fId = factionIds[fi];
+            var bt = _buildTimers[fId];
+            if (!bt) continue;
+
+            if (bt.building) {
+                // Progress current build
+                bt.timer--;
+                if (bt.timer <= 0) {
+                    // Build complete!
+                    var cls = FACTION_SHIP_CLASSES[bt.building];
+                    var faction = _factions[fId];
+                    if (cls && faction) {
+                        // Diminishing returns on military power
+                        var mpGain = cls.militaryPower;
+                        if (faction.militaryPower > 100) mpGain *= 0.8;
+                        if (faction.militaryPower > 150) mpGain *= 0.7;
+                        faction.militaryPower += Math.max(1, Math.round(mpGain));
+                        if (cls.economyBoost) faction.economy = Math.min(150, faction.economy + cls.economyBoost);
+                        if (cls.diplomacyBoost) faction.diplomacy = Math.min(100, faction.diplomacy + cls.diplomacyBoost);
+                        bt.shipsBuilt.push({ classId: bt.building, name: cls.name, time: Date.now() });
+                        if (bt.shipsBuilt.length > 20) bt.shipsBuilt.shift();
+                        Events.emit('faction_ship_built', {
+                            faction: fId,
+                            shipClass: bt.building,
+                            shipName: cls.name,
+                            militaryPower: faction.militaryPower
+                        });
+                    }
+                    bt.building = null;
+                    bt.timer = 0;
+                    // Immediately try to start next build (no idle gap)
+                    _startBuild(fId, bt);
+                }
+            } else if (_buildCheckTimer >= BUILD_CHECK_INTERVAL) {
+                _startBuild(fId, bt);
+            }
+        }
+        if (_buildCheckTimer >= BUILD_CHECK_INTERVAL) _buildCheckTimer = 0;
+    }
+
+    function getBuildState(factionId) {
+        var bt = _buildTimers[factionId];
+        if (!bt) return null;
+        var totalTime = bt.originalBuildTime || (bt.building ? FACTION_SHIP_CLASSES[bt.building].buildTime : 0);
+        return {
+            building: bt.building,
+            timer: bt.timer,
+            shipName: bt.building ? FACTION_SHIP_CLASSES[bt.building].name : null,
+            progress: bt.building ? 1 - (bt.timer / Math.max(1, totalTime)) : 0,
+            shipsBuilt: bt.shipsBuilt
+        };
+    }
+
     function tick() {
         // Earth tries to influence Moon, Mars tries to influence Ares Station
         var luna = World.getLocation('luna');
@@ -295,13 +564,18 @@ var Factions = (function () {
             _strategyEvalTimer = 0;
             _evaluateStrategies();
         }
+
+        // Faction ship building
+        _tickBuild();
     }
 
     function serialize() {
         return {
             factions: JSON.parse(JSON.stringify(_factions)),
             playerRep: JSON.parse(JSON.stringify(_playerRep)),
-            strategyEvalTimer: _strategyEvalTimer
+            strategyEvalTimer: _strategyEvalTimer,
+            buildTimers: JSON.parse(JSON.stringify(_buildTimers)),
+            buildCheckTimer: _buildCheckTimer
         };
     }
 
@@ -310,6 +584,25 @@ var Factions = (function () {
         if (data.factions) _factions = data.factions;
         if (data.playerRep) _playerRep = data.playerRep;
         _strategyEvalTimer = data.strategyEvalTimer || 0;
+        _buildCheckTimer = data.buildCheckTimer || 0;
+        // Restore build timers
+        if (data.buildTimers) {
+            _buildTimers = data.buildTimers;
+        } else {
+            _buildTimers[Config.FACTION.EARTH] = { building: null, timer: 0, queue: [], shipsBuilt: [] };
+            _buildTimers[Config.FACTION.MARS] = { building: null, timer: 0, queue: [], shipsBuilt: [] };
+        }
+        // Ensure build timers have all needed fields
+        var btIds = [Config.FACTION.EARTH, Config.FACTION.MARS];
+        for (var b = 0; b < btIds.length; b++) {
+            var bt = _buildTimers[btIds[b]];
+            if (!bt) {
+                _buildTimers[btIds[b]] = { building: null, timer: 0, queue: [], shipsBuilt: [] };
+            } else {
+                if (!bt.shipsBuilt) bt.shipsBuilt = [];
+                if (!bt.queue) bt.queue = [];
+            }
+        }
         // Ensure strategies exist for loaded factions
         var earth = _factions[Config.FACTION.EARTH];
         if (earth && (!earth.activeStrategies || earth.activeStrategies.length === 0)) {
@@ -337,6 +630,7 @@ var Factions = (function () {
         setLeaning: setLeaning,
         getActiveStrategies: getActiveStrategies,
         getStrategyMissionTypes: getStrategyMissionTypes,
+        getBuildState: getBuildState,
         tick: tick,
         serialize: serialize,
         deserialize: deserialize

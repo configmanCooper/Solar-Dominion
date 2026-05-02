@@ -89,6 +89,26 @@ var Economy = (function () {
         return _stocks[locationId][resource] || 0;
     }
 
+    // Consume stock directly (for faction ship building, station construction, etc.)
+    // Returns actual amount consumed (may be less than requested if insufficient)
+    function consumeStock(locationId, resource, amount) {
+        if (!_stocks[locationId] || amount <= 0) return 0;
+        var available = _stocks[locationId][resource] || 0;
+        var consumed = Math.min(amount, available);
+        if (consumed <= 0) return 0;
+        _stocks[locationId][resource] = available - consumed;
+        // Consuming stock raises prices (scarcity), capped at +30%
+        if (_prices[locationId] && _prices[locationId][resource]) {
+            var base = Config.RESOURCES[resource] ? Config.RESOURCES[resource].basePrice : 10;
+            var maxPrice = base * 3; // hard cap at 3x base price
+            var increase = Math.min(0.3, Config.ECONOMY.SUPPLY_DEMAND_FACTOR * consumed * 0.3);
+            _prices[locationId][resource] = Math.min(maxPrice, Math.round(
+                _prices[locationId][resource] * (1 + increase)
+            ));
+        }
+        return consumed;
+    }
+
     function getLocationStocks(locationId) {
         return _stocks[locationId] || {};
     }
@@ -153,8 +173,10 @@ var Economy = (function () {
         var revenue = price * removed;
         addCredits(revenue);
 
-        // Increase stock and decrease price
-        _stocks[locationId][resource] = (_stocks[locationId][resource] || 0) + removed;
+        // Increase stock (capped) and decrease price
+        var locEcon = Config.LOCATION_ECONOMY[locationId];
+        var cap = (locEcon && locEcon.stockCapacity) || 200;
+        _stocks[locationId][resource] = Math.min(cap, (_stocks[locationId][resource] || 0) + removed);
         _prices[locationId][resource] = Math.max(1, Math.round(
             _prices[locationId][resource] * (1 - Config.ECONOMY.SUPPLY_DEMAND_FACTOR * removed)
         ));
@@ -168,10 +190,15 @@ var Economy = (function () {
         if (!_stocks[fromLocId] || !_stocks[toLocId]) return 0;
         var available = _stocks[fromLocId][resource] || 0;
         var transferred = Math.min(amount, available);
+        // Cap by destination capacity
+        var destEcon = Config.LOCATION_ECONOMY[toLocId];
+        var destCap = (destEcon && destEcon.stockCapacity) || 200;
+        var destCurrent = _stocks[toLocId][resource] || 0;
+        transferred = Math.min(transferred, Math.max(0, destCap - destCurrent));
         if (transferred <= 0) return 0;
 
         _stocks[fromLocId][resource] = Math.max(0, available - transferred);
-        _stocks[toLocId][resource] = (_stocks[toLocId][resource] || 0) + transferred;
+        _stocks[toLocId][resource] = destCurrent + transferred;
 
         // Prices adjust
         _prices[fromLocId][resource] = Math.round(
@@ -198,16 +225,21 @@ var Economy = (function () {
         return taken;
     }
 
-    // NPC delivers goods to a location (increases stock, decreases price)
+    // NPC delivers goods to a location (increases stock, capped, decreases price)
     function npcDeliver(locId, resource, amount) {
         if (!_stocks[locId] || !resource || amount <= 0) return 0;
-        _stocks[locId][resource] = (_stocks[locId][resource] || 0) + amount;
+        var locEcon = Config.LOCATION_ECONOMY[locId];
+        var cap = (locEcon && locEcon.stockCapacity) || 200;
+        var current = _stocks[locId][resource] || 0;
+        var delivered = Math.min(amount, Math.max(0, cap - current));
+        if (delivered <= 0) return 0;
+        _stocks[locId][resource] = current + delivered;
         if (_prices[locId] && _prices[locId][resource]) {
             _prices[locId][resource] = Math.max(1, Math.round(
-                _prices[locId][resource] * (1 - Config.ECONOMY.SUPPLY_DEMAND_FACTOR * amount * 0.5)
+                _prices[locId][resource] * (1 - Config.ECONOMY.SUPPLY_DEMAND_FACTOR * delivered * 0.5)
             ));
         }
-        return amount;
+        return delivered;
     }
 
     function canAfford(costs) {
@@ -428,33 +460,56 @@ var Economy = (function () {
     }
 
     function _driftPrices() {
+        // Only drift prices every 10 ticks (1 second) for organic feel
+        if (_productionTimer % 10 !== 0) return;
+
         for (var locId in _prices) {
             var locEcon = Config.LOCATION_ECONOMY[locId];
             for (var res in _prices[locId]) {
                 var base = Config.RESOURCES[res] ? Config.RESOURCES[res].basePrice : 10;
-                // Equilibrium target based on production/consumption
-                var target = base;
+                // Equilibrium target: blend production and consumption effects
+                var prodEffect = 0, consEffect = 0;
                 if (locEcon) {
                     if (locEcon.produces && locEcon.produces[res]) {
-                        target = Math.round(base * (1 - locEcon.produces[res] * 0.03));
+                        prodEffect = Math.min(locEcon.produces[res] * 0.02, 0.4);
                     }
                     if (locEcon.consumes && locEcon.consumes[res]) {
-                        target = Math.round(base * (1 + locEcon.consumes[res] * 0.04));
+                        consEffect = Math.min(locEcon.consumes[res] * 0.03, 0.5);
                     }
                 }
+                var target = Math.round(base * (1 + consEffect - prodEffect));
                 target = Math.max(1, target);
 
-                // Also adjust based on stock levels
+                // Smooth stock-based price adjustment (linear, not threshold)
                 var stock = (_stocks[locId] && _stocks[locId][res]) || 0;
                 var cap = (locEcon && locEcon.stockCapacity) || 200;
                 var stockRatio = stock / Math.max(1, cap);
-                // Low stock → higher price, high stock → lower price
-                if (stockRatio < 0.2) target = Math.round(target * 1.3);
-                else if (stockRatio > 0.8) target = Math.round(target * 0.8);
+                // 0% stock → +50% price, 50% stock → no change, 100% stock → -30% price
+                var stockMod = 1.0 + (0.5 - stockRatio) * 0.8;
+                stockMod = Math.max(0.7, Math.min(1.5, stockMod));
+                target = Math.round(target * stockMod);
+                target = Math.max(1, target);
 
+                // Apply event modifiers to price target too
+                var evMods = _getEventModifiers(locId);
+                if (evMods.consMod[res] && evMods.consMod[res] > 1) {
+                    target = Math.round(target * (1 + (evMods.consMod[res] - 1) * 0.3));
+                }
+                if (evMods.prodMod[res] && evMods.prodMod[res] > 1) {
+                    target = Math.round(target * (1 - (evMods.prodMod[res] - 1) * 0.2));
+                }
+                // Hard clamp: prices never exceed 3x base or go below 1
+                var maxPrice = Math.max(base * 3, 30);
+                target = Math.max(1, Math.min(maxPrice, target));
+
+                // Proportional drift: move faster when gap is large
                 var current = _prices[locId][res];
-                if (current > target) _prices[locId][res] = Math.max(target, current - 1);
-                if (current < target) _prices[locId][res] = Math.min(target, current + 1);
+                var gap = Math.abs(current - target);
+                var step = Math.max(1, Math.floor(gap * 0.15));
+                if (current > target) _prices[locId][res] = Math.max(target, current - step);
+                else if (current < target) _prices[locId][res] = Math.min(target, current + step);
+                // Enforce max price cap on current too
+                _prices[locId][res] = Math.max(1, Math.min(maxPrice, _prices[locId][res]));
             }
         }
     }
@@ -505,6 +560,7 @@ var Economy = (function () {
         getBuyPrice: getBuyPrice,
         getSellPrice: getSellPrice,
         getStock: getStock,
+        consumeStock: consumeStock,
         getLocationStocks: getLocationStocks,
         getActiveEvents: getActiveEvents,
         buyResource: buyResource,
