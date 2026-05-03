@@ -563,6 +563,20 @@ var Factions = (function () {
         if (_strategyEvalTimer >= STRATEGY_EVAL_INTERVAL) {
             _strategyEvalTimer = 0;
             _evaluateStrategies();
+
+            // War attrition: factions at war lose military power over time
+            var earth = _factions[Config.FACTION.EARTH];
+            var mars = _factions[Config.FACTION.MARS];
+            if (earth && mars && earth.atWar && mars.atWar) {
+                // Each side loses based on how aggressive the other is
+                var earthLoss = (mars.warHawk / 100) * 2 * (0.8 + Math.random() * 0.4);
+                var marsLoss = (earth.warHawk / 100) * 2 * (0.8 + Math.random() * 0.4);
+                earth.militaryPower = Math.max(10, earth.militaryPower - earthLoss);
+                mars.militaryPower = Math.max(10, mars.militaryPower - marsLoss);
+                // Economy also suffers from war
+                earth.economy = Math.max(20, earth.economy - 0.2);
+                mars.economy = Math.max(20, mars.economy - 0.2);
+            }
         }
 
         // Faction ship building

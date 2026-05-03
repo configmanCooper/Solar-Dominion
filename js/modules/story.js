@@ -34,6 +34,7 @@ var Story = (function () {
                 if (p === 'peace') return 'The Peacemaker';
                 if (p === 'war_earth') return 'Earth\'s Champion';
                 if (p === 'war_mars') return 'Mars\'s Champion';
+                if (p === 'domination') return 'The Shadow Emperor';
                 return 'Path Chosen';
             },
             text: function () {
@@ -41,6 +42,7 @@ var Story = (function () {
                 if (p === 'peace') return 'You\'ve chosen the path of peace. Establish neutral zones, build diplomatic stations, and bring both sides to the negotiating table. The road will be long, but a united solar system is worth fighting for.';
                 if (p === 'war_earth') return 'You\'ve allied with Earth. Their industrial power combined with your skill could turn the tide. Convince the Moon and stations to join, build your fleet, and prepare for the final push against Mars.';
                 if (p === 'war_mars') return 'You\'ve allied with Mars. Their advanced technology gives you an edge. Rally support from neutral stations, grow your military might, and prepare to challenge Earth\'s dominance.';
+                if (p === 'domination') return 'You\'ve chosen the hardest path — to forge your own empire. Quietly build your power, flip neutral stations to your side, and when the time is right, declare your dominion. Both Earth and Mars will become your enemies. Tread carefully.';
                 return '';
             },
             trigger: function () { return Diplomacy.getPath() !== 'none'; }

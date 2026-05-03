@@ -683,7 +683,12 @@ var Config = (function () {
         INFLUENCE_PER_MISSION: 5,
         INFLUENCE_DECAY: 0.1,           // per tick
         MOON_STARTING_LEAN: { earth: 8, mars: 0 },      // Earth already courting Moon
-        STATION_STARTING_LEAN: { earth: 0, mars: 5 }    // Mars courting station
+        STATION_STARTING_LEAN: { earth: 0, mars: 5 },   // Mars courting station
+        // Domination path (hidden third option)
+        DOMINATION_REP_REQUIRED: 50,    // rep with neutral factions to flip them
+        DOMINATION_FLEET_REQUIRED: 8,   // fleet ships needed for full progress
+        DOMINATION_CREDITS_TO_FLIP: 15000, // credits to flip a station
+        DOMINATION_MILITARY_THRESHOLD: 60  // player military power needed to declare
     };
 
     // ── Combat ───────────────────────────────────────────────

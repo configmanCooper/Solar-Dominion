@@ -66,7 +66,9 @@ var UI = (function () {
         });
         Events.on('victory', function (data) {
             var title = data.type === 'peace' ? '🕊️ Peace Achieved!' :
-                data.type === 'war_earth' ? '⚔️ Earth Victorious!' : '⚔️ Mars Victorious!';
+                data.type === 'war_earth' ? '⚔️ Earth Victorious!' :
+                data.type === 'war_mars' ? '⚔️ Mars Victorious!' :
+                data.type === 'domination' ? '👑 Solar Dominion!' : '🏆 Victory!';
             _storyQueue.push({
                 title: title,
                 text: _getVictoryText(data.type)
@@ -74,7 +76,10 @@ var UI = (function () {
             if (!_isStoryVisible()) _showNextStory();
         });
         Events.on('path_chosen', function (data) {
-            var pathName = data.path === 'peace' ? 'Peace' : data.path === 'war_earth' ? 'Earth Alliance' : 'Mars Confederacy';
+            var pathName = data.path === 'peace' ? 'Peace' :
+                data.path === 'war_earth' ? 'Earth Alliance' :
+                data.path === 'war_mars' ? 'Mars Confederacy' :
+                data.path === 'domination' ? 'Solar Dominion (Hidden Path!)' : data.path;
             showToast('Path chosen: ' + pathName, 'success');
         });
         Events.on('weapon_switched', function (data) {
@@ -90,6 +95,19 @@ var UI = (function () {
         });
         Events.on('mission_expired', function (data) {
             showToast('Mission expired: ' + data.mission.name, 'warning');
+        });
+        Events.on('station_flipped', function (data) {
+            showToast('👑 ' + data.stationName + ' is now under your control!', 'success');
+        });
+        Events.on('domination_declared', function () {
+            showToast('🔥 The Solar Dominion rises! Both factions are now hostile!', 'warning');
+        });
+        Events.on('faction_subjugated', function (data) {
+            showToast('👑 ' + data.name + ' has surrendered to the Solar Dominion!', 'success');
+        });
+        Events.on('faction_ship_built', function (data) {
+            var fName = (Factions.getFaction(data.faction) || {}).name || data.faction;
+            showToast('⚙️ ' + fName + ' built: ' + data.shipName, 'info');
         });
     }
 
@@ -233,6 +251,27 @@ var UI = (function () {
 
         if (Diplomacy.getPath() === 'none' && Missions.getCompleted().length >= 3) {
             html += '<button class="panel-btn highlight" onclick="UI.openSub(\'path_select\')">⭐ Choose Your Path</button>';
+        }
+
+        // Domination path controls
+        if (Diplomacy.getPath() === 'domination') {
+            var isControlled = Diplomacy.getControlledStations().indexOf(locationId) !== -1;
+            var isHomeworld = locationId === 'earth' || locationId === 'mars';
+
+            if (isControlled) {
+                html += '<p style="color:#ff4444;font-weight:bold;">👑 Under your control</p>';
+            } else if (isHomeworld && Diplomacy.isDominationDeclared()) {
+                var hwFaction = locationId === 'earth' ? Config.FACTION.EARTH : Config.FACTION.MARS;
+                html += '<button class="panel-btn" style="background:#440000;border-color:#ff4444;" onclick="UI._subjugateFaction(\'' + hwFaction + '\')">⚔️ Subjugate ' + _factionName(hwFaction) + '</button>';
+            } else if (!isHomeworld) {
+                html += '<button class="panel-btn" style="background:#440022;border-color:#ff4444;" onclick="UI._flipStation(\'' + locationId + '\')">👑 Flip to Your Control</button>';
+            }
+
+            if (!Diplomacy.isDominationDeclared()) {
+                html += '<button class="panel-btn" style="background:#660000;border-color:#ff6644;" onclick="UI._declareDomination()">🔥 Declare Domination</button>';
+            }
+
+            html += '<p style="color:#ffaa44;font-size:0.8em;">Domination Progress: ' + Diplomacy.getDominationProgress() + '%</p>';
         }
 
         html += '<button class="panel-btn undock-btn" onclick="Ship.undock()">🚀 Undock</button>';
@@ -1961,7 +2000,7 @@ var UI = (function () {
 
         // Player path
         var path = Diplomacy.getPath();
-        html += '<h3>Your Path: ' + (path === 'none' ? 'Undecided' : path === 'peace' ? '🕊️ Peace' : '⚔️ War (' + (path === 'war_earth' ? 'Earth' : 'Mars') + ')') + '</h3>';
+        html += '<h3>Your Path: ' + (path === 'none' ? 'Undecided' : path === 'peace' ? '🕊️ Peace' : path === 'domination' ? '👑 Solar Dominion' : '⚔️ War (' + (path === 'war_earth' ? 'Earth' : 'Mars') + ')') + '</h3>';
 
         if (path === 'peace') {
             html += '<div class="progress-section">';
@@ -1976,6 +2015,31 @@ var UI = (function () {
             html += '<div class="progress-bar"><div class="progress-fill war" style="width:' + Diplomacy.getWarProgress() + '%"></div></div>';
             html += '<p>Campaigns: ' + Diplomacy.getWarCampaigns() + '/' + Config.DIPLOMACY.WAR_CAMPAIGNS_REQUIRED + '</p>';
             html += '<p>Fleet Size: ' + Fleet.getShipCount() + '/' + Config.FLEET.MAX_FLEET_SIZE + '</p>';
+            html += '</div>';
+        } else if (path === 'domination') {
+            html += '<div class="progress-section">';
+            html += '<p style="color:#ff4444;">Domination Progress: ' + Math.floor(Diplomacy.getDominationProgress()) + '%</p>';
+            html += '<div class="progress-bar"><div class="progress-fill" style="width:' + Diplomacy.getDominationProgress() + '%;background:#ff4444;"></div></div>';
+            var controlled = Diplomacy.getControlledStations();
+            html += '<p>Stations Controlled: ' + controlled.length + '</p>';
+            if (controlled.length > 0) {
+                html += '<ul style="margin:4px 0;padding-left:18px;">';
+                for (var ci = 0; ci < controlled.length; ci++) {
+                    var cLoc = World.getLocation(controlled[ci]);
+                    html += '<li style="color:#ff8844;">' + (cLoc ? cLoc.name : controlled[ci]) + '</li>';
+                }
+                html += '</ul>';
+            }
+            html += '<p>Fleet Size: ' + Fleet.getShipCount() + '/' + Config.DIPLOMACY.DOMINATION_FLEET_REQUIRED + '</p>';
+            html += '<p>Declared: ' + (Diplomacy.isDominationDeclared() ? '<span style="color:#ff4444;">YES — Both factions hostile!</span>' : '<span style="color:#88ff88;">No (covert)</span>') + '</p>';
+
+            // Show faction military power for strategic planning
+            var earthF = Factions.getFaction(Config.FACTION.EARTH);
+            var marsF = Factions.getFaction(Config.FACTION.MARS);
+            html += '<h4 style="color:#ffaa44;">Enemy Strength</h4>';
+            var milThresh = Config.DIPLOMACY.DOMINATION_MILITARY_THRESHOLD || 30;
+            html += '<p>Earth Military: ' + (earthF ? Math.round(earthF.militaryPower) : '?') + ' (need ≤' + milThresh + ' to subjugate)</p>';
+            html += '<p>Mars Military: ' + (marsF ? Math.round(marsF.militaryPower) : '?') + ' (need ≤' + milThresh + ' to subjugate)</p>';
             html += '</div>';
         }
 
@@ -2057,6 +2121,25 @@ var UI = (function () {
         html += '<p>Join Mars\'s advanced forces. Use technology to overcome Earth\'s numbers.</p>';
         html += '<p>Bonus: Better weapons, faster engines</p>';
         html += '<button class="panel-btn" onclick="UI._choosePath(\'war_mars\')">Side with Mars</button></div>';
+
+        // Hidden domination path — only visible if player has built up enough
+        var moonRep = Factions.getRep(Config.FACTION.MOON);
+        var indRep = Factions.getRep(Config.FACTION.INDEPENDENT);
+        var fleetSize = Fleet.getShipCount();
+        var credits = Economy.getCredits();
+        var canDominate = moonRep >= 30 && indRep >= 20 && fleetSize >= 2 && credits >= 10000;
+
+        if (canDominate) {
+            html += '<div class="path-card domination"><h3>👑 Solar Dominion</h3>';
+            html += '<p style="color:#ff4444;font-style:italic;">A hidden path. Why serve when you can rule?</p>';
+            html += '<p>Unite the neutral stations under YOUR banner. Build an empire, then subjugate both Earth and Mars. The hardest path — you will fight everyone.</p>';
+            html += '<p style="color:#ffaa44;">⚠️ EXTREME DIFFICULTY</p>';
+            html += '<button class="panel-btn" style="background:#660022;border-color:#ff4444;" onclick="UI._choosePath(\'domination\')">Seize Power</button></div>';
+        } else {
+            html += '<div class="path-card" style="opacity:0.3;pointer-events:none;border-color:#333;"><h3>❓ ???</h3>';
+            html += '<p style="color:#666;">Something stirs in the shadows... Perhaps if you were more influential, wealthier, and commanded a fleet...</p></div>';
+        }
+
         html += '</div>';
         html += '<button class="panel-btn" onclick="UI.openSub(\'dock\')">← Not Yet</button>';
         _elements.panel.innerHTML = html;
@@ -2473,6 +2556,39 @@ var UI = (function () {
         closePanel();
     }
 
+    function _flipStation(locId) {
+        var result = Diplomacy.flipStation(locId);
+        if (result.success) {
+            showToast('Station flipped to your control!', 'success');
+            _showDockPanel(locId);
+        } else {
+            showToast(result.reason, 'warning');
+        }
+    }
+
+    function _declareDomination() {
+        var result = Diplomacy.declareDomination();
+        if (result.success) {
+            showToast('⚠️ DOMINATION DECLARED — Both factions are now hostile!', 'warning');
+            var dockedAt = Ship.getShip().dockedAt;
+            if (dockedAt) _showDockPanel(dockedAt);
+        } else {
+            showToast(result.reason, 'warning');
+        }
+    }
+
+    function _subjugateFaction(factionId) {
+        var result = Diplomacy.subjugateFaction(factionId);
+        if (result.success) {
+            var fName = (Factions.getFaction(factionId) || {}).name || factionId;
+            showToast('👑 ' + fName + ' has been subjugated!', 'success');
+            var dockedAt = Ship.getShip().dockedAt;
+            if (dockedAt) _showDockPanel(dockedAt);
+        } else {
+            showToast(result.reason, 'warning');
+        }
+    }
+
     function _establishNeutralZone(locId) {
         var result = Diplomacy.establishNeutralZone(locId);
         if (result.success) {
@@ -2560,7 +2676,9 @@ var UI = (function () {
     function _getVictoryText(type) {
         if (type === 'peace') return 'Through tireless diplomacy and unwavering determination, you\'ve brought Earth and Mars to the peace table. The solar system enters a new era of cooperation. Your name will be remembered as the one who united humanity among the stars.';
         if (type === 'war_earth') return 'With Earth\'s industrial might and your strategic genius, Mars has surrendered. Earth now controls the solar system. Whether this brings lasting peace or continued oppression remains to be seen...';
-        return 'Mars\'s technological superiority, combined with your tactical brilliance, has forced Earth to capitulate. The red planet now leads humanity\'s future. A new order rises from the dust.';
+        if (type === 'war_mars') return 'Mars\'s technological superiority, combined with your tactical brilliance, has forced Earth to capitulate. The red planet now leads humanity\'s future. A new order rises from the dust.';
+        if (type === 'domination') return 'Against all odds, you have conquered the entire solar system. Neither Earth nor Mars could stand against your cunning and military prowess. From a lone pilot on a neutral moon, you have risen to become the supreme ruler of humanity\'s domain. The Solar Dominion stands eternal — but at what cost? History will judge whether your iron hand brings unity or tyranny to the stars.';
+        return 'Victory achieved!';
     }
 
     // ── Helpers ──────────────────────────────────────────────
@@ -2578,6 +2696,7 @@ var UI = (function () {
     }
 
     function _factionName(id) {
+        if (id === Config.FACTION.PLAYER) return 'Solar Dominion';
         var f = Factions.getFaction(id);
         return f ? f.name : id;
     }
@@ -2631,6 +2750,9 @@ var UI = (function () {
         _refuel: _refuel,
         _repair: _repair,
         _choosePath: _choosePath,
+        _flipStation: _flipStation,
+        _declareDomination: _declareDomination,
+        _subjugateFaction: _subjugateFaction,
         _establishNeutralZone: _establishNeutralZone,
         _influence: _influence,
         _startPeaceTalk: _startPeaceTalk,

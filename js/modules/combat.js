@@ -158,9 +158,14 @@ var Combat = (function () {
             if (npc.faction === Config.FACTION.EARTH) {
                 Factions.changeRep(Config.FACTION.EARTH, -5);
                 Factions.changeRep(Config.FACTION.MARS, 2);
+                // Reduce faction military power when their ships are destroyed
+                var earthF = Factions.getFaction(Config.FACTION.EARTH);
+                if (earthF) earthF.militaryPower = Math.max(5, earthF.militaryPower - (npc.behavior === 'patrol' ? 3 : 1));
             } else if (npc.faction === Config.FACTION.MARS) {
                 Factions.changeRep(Config.FACTION.MARS, -5);
                 Factions.changeRep(Config.FACTION.EARTH, 2);
+                var marsF = Factions.getFaction(Config.FACTION.MARS);
+                if (marsF) marsF.militaryPower = Math.max(5, marsF.militaryPower - (npc.behavior === 'patrol' ? 3 : 1));
             } else if (npc.faction === Config.FACTION.INDEPENDENT) {
                 Factions.changeRep(Config.FACTION.INDEPENDENT, -3);
             }
