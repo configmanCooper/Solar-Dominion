@@ -62,6 +62,23 @@ var World = (function () {
         'Andreev','Bassey','Rawat','Kawaguchi','Aguilar','Akerlund','Vinogradov','Amadi','Thakur','Ueda'
     ];
 
+    // Mars-flavored science/researcher-style first names (used 50% of the time for Mars NPCs)
+    var _MARS_FIRST_NAMES = [
+        'Tycho','Nikola','Kepler','Archon','Zenith','Axion','Lyra','Nova','Vector','Quasar',
+        'Helix','Sagan','Curie','Darwin','Tesla','Fermi','Volta','Kelvin','Photon','Cipher',
+        'Nexus','Theorem','Euler','Gauss','Parsec','Flux','Quantum','Axiom','Prism','Neutron',
+        'Hadron','Boson','Isotope','Spectrum','Orbital','Cortex','Synapse','Catalyst','Vortex','Cryo',
+        'Aether','Zenon','Eos','Thales','Hypatia','Brahe','Halley','Hubble','Laplace','Leibniz',
+        'Faraday','Planck','Lorentz','Dirac','Feynman','Hawking','Mendel','Linus','Rosalind','Michio',
+        'Andromeda','Cassini','Ptolemy','Copernicus','Galilei','Aristarchus','Eratosthenes','Archimedes','Pythagoras','Euclid'
+    ];
+    var _MARS_LAST_NAMES = [
+        'Helix','Voss','Krane','Solari','Xylen','Dyne','Proton','Quark','Strom','Vektor',
+        'Axial','Cryon','Lumis','Teron','Synthar','Kovac','Theron','Zerov','Nyx','Pulsarov',
+        'Ionescu','Valence','Orbitov','Teslan','Fusionov','Novak','Stellaris','Magnov','Quantus','Wavell',
+        'Celeron','Nixov','Voltaris','Kelvinov','Neutris','Spectra','Radionov','Thermov','Graviton','Cern'
+    ];
+
     var _locations = [];       // active location objects (from Config + player-built)
     var _stars = [];           // background decoration
     var _nebulae = [];
@@ -289,7 +306,12 @@ var World = (function () {
             aiTimer: 0,
             dead: false
         };
-        npc.commander = _FIRST_NAMES[Math.floor(Math.random() * _FIRST_NAMES.length)] + ' ' + _LAST_NAMES[Math.floor(Math.random() * _LAST_NAMES.length)];
+        // Commander name — Mars gets science/researcher-style names 50% of the time
+        if (faction === Config.FACTION.MARS && Math.random() < 0.5) {
+            npc.commander = _MARS_FIRST_NAMES[Math.floor(Math.random() * _MARS_FIRST_NAMES.length)] + ' ' + _MARS_LAST_NAMES[Math.floor(Math.random() * _MARS_LAST_NAMES.length)];
+        } else {
+            npc.commander = _FIRST_NAMES[Math.floor(Math.random() * _FIRST_NAMES.length)] + ' ' + _LAST_NAMES[Math.floor(Math.random() * _LAST_NAMES.length)];
+        }
         npc.morale = 50 + Math.floor(Math.random() * 50);
         npc.disposition = npc.faction;
         _npcs.push(npc);
