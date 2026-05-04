@@ -154,18 +154,21 @@ var Combat = (function () {
             }
         }
 
-        // Ship collision damage — NPCs ramming player
+        // Ship collision damage — only with hostile NPCs in combat
         for (var ci = 0; ci < npcs.length; ci++) {
             var cn = npcs[ci];
             if (cn.dead) continue;
             var collDx = ship.x - cn.x, collDy = ship.y - cn.y;
             var collDist = Math.sqrt(collDx * collDx + collDy * collDy);
             if (collDist < 18) {
-                // Collision! Damage both ships
-                var collisionDmg = 8 + Math.random() * 7;
-                Ship.takeDamage(collisionDmg, 'kinetic', Math.atan2(collDy, collDx));
-                _damageNPC(cn, collisionDmg, 'kinetic', true);
-                // Push apart
+                var inFight = cn.hostile || (typeof Factions !== 'undefined' && Factions.isHostile && Factions.isHostile(cn.faction) && (cn.behavior === 'patrol' || cn.behavior === 'battle'));
+                if (inFight) {
+                    // Collision! Damage both ships
+                    var collisionDmg = 8 + Math.random() * 7;
+                    Ship.takeDamage(collisionDmg, 'kinetic', Math.atan2(collDy, collDx));
+                    _damageNPC(cn, collisionDmg, 'kinetic', true);
+                }
+                // Always push apart to prevent overlap
                 var pushAngle = Math.atan2(collDy, collDx);
                 cn.x -= Math.cos(pushAngle) * 10;
                 cn.y -= Math.sin(pushAngle) * 10;
