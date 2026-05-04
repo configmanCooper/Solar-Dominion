@@ -19,7 +19,11 @@ var Config = (function () {
     var AUTOSAVE_INTERVAL = 60000; // ms
     var UI_UPDATE_TICKS = 5;
     var NPC_RESPAWN_INTERVAL = 300; // ticks between respawn checks
-    var NPC_MAX_PATROLS = 50;      // per faction
+    var NPC_MAX_PATROLS = 50;      // per faction (defense-focused)
+    var NPC_MAX_BATTLE = 30;       // per faction (offensive ships)
+    var NPC_MAX_DIPLOMACY = 10;    // per faction (peace/influence ships)
+    var NPC_MAX_RESEARCH = 8;      // per faction (science ships)
+    var NPC_MAX_MINERS = 12;       // per faction (mining ships)
 
     // ── Calendar ────────────────────────────────────────────
     // 1 day = 6 seconds real = 60 ticks. 1 year = 365 days = 21900 ticks (~36.5 min)
@@ -845,6 +849,10 @@ var Config = (function () {
         UI_UPDATE_TICKS: UI_UPDATE_TICKS,
         NPC_RESPAWN_INTERVAL: NPC_RESPAWN_INTERVAL,
         NPC_MAX_PATROLS: NPC_MAX_PATROLS,
+        NPC_MAX_BATTLE: NPC_MAX_BATTLE,
+        NPC_MAX_DIPLOMACY: NPC_MAX_DIPLOMACY,
+        NPC_MAX_RESEARCH: NPC_MAX_RESEARCH,
+        NPC_MAX_MINERS: NPC_MAX_MINERS,
         NPC_MAX_TRADERS: NPC_MAX_TRADERS,
         BASE_SPEED: BASE_SPEED, ROTATION_SPEED: ROTATION_SPEED,
         FACTION: FACTION, LOC_TYPE: LOC_TYPE, LOCATIONS: LOCATIONS,

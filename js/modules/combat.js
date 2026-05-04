@@ -155,7 +155,9 @@ var Combat = (function () {
     function _tickNPCvNPC(npcs) {
         for (var i = 0; i < npcs.length; i++) {
             var a = npcs[i];
-            if (a.dead || !a.weapon || a.behavior !== 'patrol') continue;
+            if (a.dead || !a.weapon) continue;
+            // Only patrol and battle ships engage in faction combat
+            if (a.behavior !== 'patrol' && a.behavior !== 'battle') continue;
 
             // Skip if already targeting the player (player takes priority)
             var hostile = Factions.isHostile(a.faction) || a.hostile;

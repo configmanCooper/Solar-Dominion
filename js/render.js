@@ -885,12 +885,49 @@ var Render = (function () {
 
             if (npc.grid && npc.grid.cells) {
                 _drawBlockGrid(npc.grid, 2.5);
-            } else if (npc.behavior === 'patrol') {
+            } else if (npc.behavior === 'patrol' || npc.behavior === 'battle') {
+                // Combat ships — aggressive arrow shape
                 _ctx.beginPath();
                 _ctx.moveTo(12, 0);
                 _ctx.lineTo(-8, -7);
                 _ctx.lineTo(-4, 0);
                 _ctx.lineTo(-8, 7);
+                _ctx.closePath();
+                _ctx.fillStyle = color;
+                _ctx.fill();
+            } else if (npc.behavior === 'diplomacy') {
+                // Diplomacy — rounded shape
+                _ctx.beginPath();
+                _ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                _ctx.fillStyle = color;
+                _ctx.fill();
+                _ctx.strokeStyle = '#ffffff44';
+                _ctx.lineWidth = 1;
+                _ctx.stroke();
+            } else if (npc.behavior === 'research') {
+                // Research — diamond with antenna
+                _ctx.beginPath();
+                _ctx.moveTo(0, -8);
+                _ctx.lineTo(6, 0);
+                _ctx.lineTo(0, 8);
+                _ctx.lineTo(-6, 0);
+                _ctx.closePath();
+                _ctx.fillStyle = color;
+                _ctx.fill();
+                _ctx.beginPath();
+                _ctx.moveTo(0, -8);
+                _ctx.lineTo(0, -13);
+                _ctx.strokeStyle = '#44ffaa';
+                _ctx.lineWidth = 1;
+                _ctx.stroke();
+            } else if (npc.behavior === 'mining') {
+                // Mining — hexagonal
+                _ctx.beginPath();
+                for (var hi = 0; hi < 6; hi++) {
+                    var ha = hi * Math.PI / 3;
+                    var hx = Math.cos(ha) * 7, hy = Math.sin(ha) * 7;
+                    if (hi === 0) _ctx.moveTo(hx, hy); else _ctx.lineTo(hx, hy);
+                }
                 _ctx.closePath();
                 _ctx.fillStyle = color;
                 _ctx.fill();

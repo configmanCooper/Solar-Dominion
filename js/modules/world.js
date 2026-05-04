@@ -102,34 +102,90 @@ var World = (function () {
         var mars = getLocation('mars');
         var ex = earth ? earth.x : 7500, ey = earth ? earth.y : 7500;
         var mx = mars ? mars.x : 7500, my = mars ? mars.y : 7500;
-        // Earth patrol ships — near Earth (spread in 800px radius)
+
+        // Helper to spread ships around a position
+        function spread(cx, cy, radius) {
+            var a = Math.random() * Math.PI * 2, r = Math.random() * radius;
+            return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
+        }
+
+        // ── Earth ships ──
+        // Patrol (defense) — 50
         for (var i = 0; i < 50; i++) {
-            var ea = Math.random() * Math.PI * 2, er = Math.random() * 800;
-            _spawnNPC('earth_patrol_' + i, Config.FACTION.EARTH, 'patrol',
-                ex + Math.cos(ea) * er, ey + Math.sin(ea) * er);
+            var ep = spread(ex, ey, 800);
+            _spawnNPC('earth_patrol_' + i, Config.FACTION.EARTH, 'patrol', ep.x, ep.y);
         }
-        // Mars patrol ships — near Mars
+        // Battle (offense) — 25 (Mars gets slightly more)
+        for (var ib = 0; ib < 25; ib++) {
+            var eb = spread(ex, ey, 900);
+            _spawnNPC('earth_battle_' + ib, Config.FACTION.EARTH, 'battle', eb.x, eb.y);
+        }
+        // Diplomacy — 12 (Earth gets slightly more, they lean diplomatic)
+        for (var id = 0; id < 12; id++) {
+            var ed = spread(ex, ey, 1000);
+            _spawnNPC('earth_diplo_' + id, Config.FACTION.EARTH, 'diplomacy', ed.x, ed.y);
+        }
+        // Research — 6 (Mars gets more)
+        for (var ir = 0; ir < 6; ir++) {
+            var er = spread(ex, ey, 700);
+            _spawnNPC('earth_research_' + ir, Config.FACTION.EARTH, 'research', er.x, er.y);
+        }
+        // Mining — 10
+        for (var im = 0; im < 10; im++) {
+            var em = spread(ex, ey, 1200);
+            _spawnNPC('earth_miner_' + im, Config.FACTION.EARTH, 'mining', em.x, em.y);
+        }
+        // Earth traders — 20
+        for (var et = 0; et < 20; et++) {
+            var etpos = spread(ex, ey, 1200);
+            _spawnNPC('earth_trader_' + et, Config.FACTION.EARTH, 'trade', etpos.x, etpos.y);
+        }
+
+        // ── Mars ships ──
+        // Patrol (defense) — 50
         for (var j = 0; j < 50; j++) {
-            var ma = Math.random() * Math.PI * 2, mr = Math.random() * 800;
-            _spawnNPC('mars_patrol_' + j, Config.FACTION.MARS, 'patrol',
-                mx + Math.cos(ma) * mr, my + Math.sin(ma) * mr);
+            var mp = spread(mx, my, 800);
+            _spawnNPC('mars_patrol_' + j, Config.FACTION.MARS, 'patrol', mp.x, mp.y);
         }
-        // Independent traders — scattered between Earth and Mars
+        // Battle (offense) — 35 (Mars is more aggressive)
+        for (var jb = 0; jb < 35; jb++) {
+            var mb = spread(mx, my, 900);
+            _spawnNPC('mars_battle_' + jb, Config.FACTION.MARS, 'battle', mb.x, mb.y);
+        }
+        // Diplomacy — 8 (Mars has fewer)
+        for (var jd = 0; jd < 8; jd++) {
+            var md = spread(mx, my, 1000);
+            _spawnNPC('mars_diplo_' + jd, Config.FACTION.MARS, 'diplomacy', md.x, md.y);
+        }
+        // Research — 10 (Mars has more research ships)
+        for (var jr = 0; jr < 10; jr++) {
+            var mrr = spread(mx, my, 700);
+            _spawnNPC('mars_research_' + jr, Config.FACTION.MARS, 'research', mrr.x, mrr.y);
+        }
+        // Mining — 12
+        for (var jm = 0; jm < 12; jm++) {
+            var mm = spread(mx, my, 1200);
+            _spawnNPC('mars_miner_' + jm, Config.FACTION.MARS, 'mining', mm.x, mm.y);
+        }
+        // Mars traders — 20
+        for (var mt = 0; mt < 20; mt++) {
+            var mtpos = spread(mx, my, 1200);
+            _spawnNPC('mars_trader_' + mt, Config.FACTION.MARS, 'trade', mtpos.x, mtpos.y);
+        }
+
+        // ── Independent traders — scattered between Earth and Mars ──
         for (var k = 0; k < 60; k++) {
             var t = Math.random();
             _spawnNPC('trader_' + k, Config.FACTION.INDEPENDENT, 'trade',
                 ex + (mx - ex) * t + (Math.random() - 0.5) * 2000,
                 ey + (my - ey) * t + (Math.random() - 0.5) * 2000);
         }
-        // Earth faction traders
-        for (var et = 0; et < 20; et++) {
-            _spawnNPC('earth_trader_' + et, Config.FACTION.EARTH, 'trade',
-                ex + (Math.random() - 0.5) * 1200, ey + (Math.random() - 0.5) * 1200);
-        }
-        // Mars faction traders
-        for (var mt = 0; mt < 20; mt++) {
-            _spawnNPC('mars_trader_' + mt, Config.FACTION.MARS, 'trade',
-                mx + (Math.random() - 0.5) * 1200, my + (Math.random() - 0.5) * 1200);
+        // Independent miners
+        for (var km = 0; km < 8; km++) {
+            var tt = Math.random();
+            _spawnNPC('indie_miner_' + km, Config.FACTION.INDEPENDENT, 'mining',
+                ex + (mx - ex) * tt + (Math.random() - 0.5) * 2000,
+                ey + (my - ey) * tt + (Math.random() - 0.5) * 2000);
         }
     }
 
@@ -138,8 +194,17 @@ var World = (function () {
         var factionKey = faction === Config.FACTION.EARTH ? 'earth' :
                          faction === Config.FACTION.MARS ? 'mars' :
                          faction === Config.FACTION.MOON ? 'moon' : 'independent';
-        var roleFilter = behavior === 'patrol' ? 'patrol' : behavior === 'trade' ? 'trader' : null;
+        var roleFilter = behavior === 'patrol' ? 'patrol' :
+                         behavior === 'trade' ? 'trader' :
+                         behavior === 'battle' ? 'battle' :
+                         behavior === 'diplomacy' ? 'diplomat' :
+                         behavior === 'research' ? 'research' :
+                         behavior === 'mining' ? 'miner' : null;
+        // Battle ships can also use fighter templates if no 'battle' role found
         var template = ShipTemplates.pickRandom(factionKey, roleFilter);
+        if (!template && roleFilter === 'battle') {
+            template = ShipTemplates.pickRandom(factionKey, 'fighter');
+        }
         var grid = ShipGrid.fromTemplate(template.hullClass, template.blocks);
         var stats = grid.stats;
 
@@ -299,6 +364,16 @@ var World = (function () {
         }
     }
 
+    function _updatePatrolCenter(npc) {
+        if (npc.faction === Config.FACTION.EARTH) {
+            var earthLoc = getLocation('earth');
+            if (earthLoc) npc.patrolCenter = { x: earthLoc.x, y: earthLoc.y };
+        } else if (npc.faction === Config.FACTION.MARS) {
+            var marsLoc = getLocation('mars');
+            if (marsLoc) npc.patrolCenter = { x: marsLoc.x, y: marsLoc.y };
+        }
+    }
+
     function _updateNPCAI(npc) {
         npc.aiTimer--;
         if (npc.aiTimer > 0) {
@@ -313,6 +388,9 @@ var World = (function () {
             } else if (npc.behavior === 'trade' && npc.tradeTarget) {
                 // Arrived at trade destination — execute trade
                 _npcExecuteTrade(npc);
+            } else if (npc.behavior === 'diplomacy' && npc.diploTarget) {
+                // Diplomacy ships exert passive influence when near a location
+                _npcDiplomacyInfluence(npc);
             }
             // Shield regen
             if (npc.shieldHp < npc.maxShieldHp) {
@@ -324,16 +402,79 @@ var World = (function () {
         // Pick new destination
         npc.aiTimer = 30 + Math.floor(Math.random() * 60);
         if (npc.behavior === 'patrol') {
-            // Update patrol center to follow parent planet
-            if (npc.faction === Config.FACTION.EARTH) {
-                var earthLoc = getLocation('earth');
-                if (earthLoc) npc.patrolCenter = { x: earthLoc.x, y: earthLoc.y };
-            } else if (npc.faction === Config.FACTION.MARS) {
-                var marsLoc = getLocation('mars');
-                if (marsLoc) npc.patrolCenter = { x: marsLoc.x, y: marsLoc.y };
-            }
+            // Defense ships stay close to home planet
+            _updatePatrolCenter(npc);
             npc.destX = npc.patrolCenter.x + (Math.random() - 0.5) * npc.patrolRadius * 2;
             npc.destY = npc.patrolCenter.y + (Math.random() - 0.5) * npc.patrolRadius * 2;
+        } else if (npc.behavior === 'battle') {
+            // Offensive ships roam further, patrol between home and enemy territory
+            _updatePatrolCenter(npc);
+            var roamFactor = 0.3 + Math.random() * 0.4; // wander 30-70% toward enemy
+            var enemyLoc = npc.faction === Config.FACTION.EARTH ? getLocation('mars') : getLocation('earth');
+            if (enemyLoc && Math.random() < 0.4) {
+                // Sometimes push toward enemy territory
+                npc.destX = npc.patrolCenter.x + (enemyLoc.x - npc.patrolCenter.x) * roamFactor + (Math.random() - 0.5) * 600;
+                npc.destY = npc.patrolCenter.y + (enemyLoc.y - npc.patrolCenter.y) * roamFactor + (Math.random() - 0.5) * 600;
+            } else {
+                npc.destX = npc.patrolCenter.x + (Math.random() - 0.5) * npc.patrolRadius * 3;
+                npc.destY = npc.patrolCenter.y + (Math.random() - 0.5) * npc.patrolRadius * 3;
+            }
+        } else if (npc.behavior === 'diplomacy') {
+            // Diplomacy ships travel between dockable locations, especially neutral ones
+            var diploTargets = [];
+            for (var dli = 0; dli < _locations.length; dli++) {
+                var dloc = _locations[dli];
+                if (!dloc.dockable) continue;
+                // Prefer neutral or contested locations
+                var isNeutral = dloc.influence && (dloc.influence.earth < 70 && dloc.influence.mars < 70);
+                if (isNeutral) diploTargets.push(dloc, dloc); // double weight
+                diploTargets.push(dloc);
+            }
+            if (diploTargets.length > 0) {
+                var dTarget = diploTargets[Math.floor(Math.random() * diploTargets.length)];
+                npc.destX = dTarget.x + (Math.random() - 0.5) * 100;
+                npc.destY = dTarget.y + (Math.random() - 0.5) * 100;
+                // Passive influence: diplomacy ships slowly push influence at nearby locations
+                npc.diploTarget = dTarget.id;
+            }
+        } else if (npc.behavior === 'research') {
+            // Research ships visit points of interest: asteroid fields, stations, edges of map
+            if (Math.random() < 0.5) {
+                // Visit a random location
+                var researchLocs = [];
+                for (var rli = 0; rli < _locations.length; rli++) researchLocs.push(_locations[rli]);
+                if (researchLocs.length > 0) {
+                    var rTarget = researchLocs[Math.floor(Math.random() * researchLocs.length)];
+                    npc.destX = rTarget.x + (Math.random() - 0.5) * 300;
+                    npc.destY = rTarget.y + (Math.random() - 0.5) * 300;
+                }
+            } else {
+                // Explore random area of the map
+                npc.destX = 500 + Math.random() * (Config.WORLD_W - 1000);
+                npc.destY = 500 + Math.random() * (Config.WORLD_H - 1000);
+            }
+            npc.aiTimer = 60 + Math.floor(Math.random() * 90); // research ships take longer routes
+        } else if (npc.behavior === 'mining') {
+            // Mining ships head to asteroid fields or resource-rich areas
+            _updatePatrolCenter(npc);
+            if (Math.random() < 0.6) {
+                // Head toward an asteroid field
+                var fields = Config.ASTEROID_FIELDS;
+                var fieldKeys = Object.keys(fields);
+                if (fieldKeys.length > 0) {
+                    var fKey = fieldKeys[Math.floor(Math.random() * fieldKeys.length)];
+                    var field = fields[fKey];
+                    var parentLoc = getLocation(field.parent);
+                    if (parentLoc) {
+                        npc.destX = parentLoc.x + field.offsetX + (Math.random() - 0.5) * 200;
+                        npc.destY = parentLoc.y + field.offsetY + (Math.random() - 0.5) * 200;
+                    }
+                }
+            } else {
+                // Wander near home
+                npc.destX = npc.patrolCenter.x + (Math.random() - 0.5) * 1600;
+                npc.destY = npc.patrolCenter.y + (Math.random() - 0.5) * 1600;
+            }
         } else if (npc.behavior === 'trade') {
             // Smart routing: if carrying cargo, prefer locations that consume it
             var dockable = [];
@@ -449,50 +590,112 @@ var World = (function () {
         }
     }
 
+    function _npcDiplomacyInfluence(npc) {
+        if (!npc.diploTarget) return;
+        var targetId = npc.diploTarget;
+        npc.diploTarget = null;
+
+        // Find the location
+        for (var i = 0; i < _locations.length; i++) {
+            var loc = _locations[i];
+            if (loc.id !== targetId) continue;
+            var dx = loc.x - npc.x, dy = loc.y - npc.y;
+            if (Math.sqrt(dx * dx + dy * dy) > loc.radius + 120) break;
+
+            // Only influence neutral/contested locations
+            if (loc.id === 'earth' || loc.id === 'mars') break;
+            if (!loc.influence) break;
+
+            // Push influence toward this faction by a small amount
+            var faction = npc.faction;
+            var key = faction === Config.FACTION.EARTH ? 'earth' : 'mars';
+            var otherKey = key === 'earth' ? 'mars' : 'earth';
+            loc.influence[key] = Math.min(100, loc.influence[key] + 0.3);
+            loc.influence[otherKey] = Math.max(0, loc.influence[otherKey] - 0.1);
+            break;
+        }
+    }
+
     function _respawnNPCs() {
-        var earthPatrols = 0, marsPatrols = 0, traders = 0, earthTraders = 0, marsTraders = 0;
+        var counts = {
+            earthPatrol: 0, marsPatrol: 0,
+            earthBattle: 0, marsBattle: 0,
+            earthDiplo: 0, marsDiplo: 0,
+            earthResearch: 0, marsResearch: 0,
+            earthMiner: 0, marsMiner: 0,
+            earthTrader: 0, marsTrader: 0,
+            traders: 0, indieMiner: 0
+        };
         for (var i = 0; i < _npcs.length; i++) {
             var n = _npcs[i];
             if (n.dead) continue;
-            if (n.behavior === 'patrol') {
-                if (n.faction === Config.FACTION.EARTH) earthPatrols++;
-                else if (n.faction === Config.FACTION.MARS) marsPatrols++;
-            } else if (n.behavior === 'trade') {
-                if (n.faction === Config.FACTION.EARTH) earthTraders++;
-                else if (n.faction === Config.FACTION.MARS) marsTraders++;
-                else traders++;
+            var isEarth = n.faction === Config.FACTION.EARTH;
+            var isMars = n.faction === Config.FACTION.MARS;
+            if (n.behavior === 'patrol') { if (isEarth) counts.earthPatrol++; else if (isMars) counts.marsPatrol++; }
+            else if (n.behavior === 'battle') { if (isEarth) counts.earthBattle++; else if (isMars) counts.marsBattle++; }
+            else if (n.behavior === 'diplomacy') { if (isEarth) counts.earthDiplo++; else if (isMars) counts.marsDiplo++; }
+            else if (n.behavior === 'research') { if (isEarth) counts.earthResearch++; else if (isMars) counts.marsResearch++; }
+            else if (n.behavior === 'mining') {
+                if (isEarth) counts.earthMiner++;
+                else if (isMars) counts.marsMiner++;
+                else counts.indieMiner++;
+            }
+            else if (n.behavior === 'trade') {
+                if (isEarth) counts.earthTrader++;
+                else if (isMars) counts.marsTrader++;
+                else counts.traders++;
             }
         }
         var earth = getLocation('earth');
         var mars = getLocation('mars');
         var ex = earth ? earth.x : Config.SUN_X, ey = earth ? earth.y : Config.SUN_Y;
         var mx = mars ? mars.x : Config.SUN_X, my = mars ? mars.y : Config.SUN_Y;
-        var maxP = Config.NPC_MAX_PATROLS;
-        var maxT = Config.NPC_MAX_TRADERS;
-        if (earthPatrols < maxP) {
-            _spawnNPC('earth_patrol_r' + (_nextId++), Config.FACTION.EARTH, 'patrol',
-                ex - 300 + Math.random() * 600, ey - 300 + Math.random() * 600);
-        }
-        if (marsPatrols < maxP) {
-            _spawnNPC('mars_patrol_r' + (_nextId++), Config.FACTION.MARS, 'patrol',
-                mx - 300 + Math.random() * 600, my - 300 + Math.random() * 600);
-        }
+
+        // Spawn one ship per category per respawn cycle if below cap
+        if (counts.earthPatrol < Config.NPC_MAX_PATROLS)
+            _spawnNPC('earth_patrol_r' + (_nextId++), Config.FACTION.EARTH, 'patrol', ex + (Math.random() - 0.5) * 1600, ey + (Math.random() - 0.5) * 1600);
+        if (counts.marsPatrol < Config.NPC_MAX_PATROLS)
+            _spawnNPC('mars_patrol_r' + (_nextId++), Config.FACTION.MARS, 'patrol', mx + (Math.random() - 0.5) * 1600, my + (Math.random() - 0.5) * 1600);
+
+        if (counts.earthBattle < Config.NPC_MAX_BATTLE)
+            _spawnNPC('earth_battle_r' + (_nextId++), Config.FACTION.EARTH, 'battle', ex + (Math.random() - 0.5) * 1800, ey + (Math.random() - 0.5) * 1800);
+        if (counts.marsBattle < Config.NPC_MAX_BATTLE)
+            _spawnNPC('mars_battle_r' + (_nextId++), Config.FACTION.MARS, 'battle', mx + (Math.random() - 0.5) * 1800, my + (Math.random() - 0.5) * 1800);
+
+        if (counts.earthDiplo < Config.NPC_MAX_DIPLOMACY)
+            _spawnNPC('earth_diplo_r' + (_nextId++), Config.FACTION.EARTH, 'diplomacy', ex + (Math.random() - 0.5) * 2000, ey + (Math.random() - 0.5) * 2000);
+        if (counts.marsDiplo < Config.NPC_MAX_DIPLOMACY)
+            _spawnNPC('mars_diplo_r' + (_nextId++), Config.FACTION.MARS, 'diplomacy', mx + (Math.random() - 0.5) * 2000, my + (Math.random() - 0.5) * 2000);
+
+        if (counts.earthResearch < Config.NPC_MAX_RESEARCH)
+            _spawnNPC('earth_research_r' + (_nextId++), Config.FACTION.EARTH, 'research', ex + (Math.random() - 0.5) * 1400, ey + (Math.random() - 0.5) * 1400);
+        if (counts.marsResearch < Config.NPC_MAX_RESEARCH)
+            _spawnNPC('mars_research_r' + (_nextId++), Config.FACTION.MARS, 'research', mx + (Math.random() - 0.5) * 1400, my + (Math.random() - 0.5) * 1400);
+
+        if (counts.earthMiner < Config.NPC_MAX_MINERS)
+            _spawnNPC('earth_miner_r' + (_nextId++), Config.FACTION.EARTH, 'mining', ex + (Math.random() - 0.5) * 2400, ey + (Math.random() - 0.5) * 2400);
+        if (counts.marsMiner < Config.NPC_MAX_MINERS)
+            _spawnNPC('mars_miner_r' + (_nextId++), Config.FACTION.MARS, 'mining', mx + (Math.random() - 0.5) * 2400, my + (Math.random() - 0.5) * 2400);
+
         // Independent traders
-        if (traders < maxT) {
+        if (counts.traders < Config.NPC_MAX_TRADERS) {
             var t = Math.random();
             _spawnNPC('trader_r' + (_nextId++), Config.FACTION.INDEPENDENT, 'trade',
-                ex + (mx - ex) * t + (Math.random() - 0.5) * 1000,
-                ey + (my - ey) * t + (Math.random() - 0.5) * 1000);
+                ex + (mx - ex) * t + (Math.random() - 0.5) * 2000,
+                ey + (my - ey) * t + (Math.random() - 0.5) * 2000);
         }
         // Earth faction traders
-        if (earthTraders < 20) {
-            _spawnNPC('earth_trader_r' + (_nextId++), Config.FACTION.EARTH, 'trade',
-                ex + (Math.random() - 0.5) * 600, ey + (Math.random() - 0.5) * 600);
-        }
+        if (counts.earthTrader < 20)
+            _spawnNPC('earth_trader_r' + (_nextId++), Config.FACTION.EARTH, 'trade', ex + (Math.random() - 0.5) * 1200, ey + (Math.random() - 0.5) * 1200);
         // Mars faction traders
-        if (marsTraders < 20) {
-            _spawnNPC('mars_trader_r' + (_nextId++), Config.FACTION.MARS, 'trade',
-                mx + (Math.random() - 0.5) * 600, my + (Math.random() - 0.5) * 600);
+        if (counts.marsTrader < 20)
+            _spawnNPC('mars_trader_r' + (_nextId++), Config.FACTION.MARS, 'trade', mx + (Math.random() - 0.5) * 1200, my + (Math.random() - 0.5) * 1200);
+        // Independent miners
+        if (counts.indieMiner < 8) {
+            var ti = Math.random();
+            _spawnNPC('indie_miner_r' + (_nextId++), Config.FACTION.INDEPENDENT, 'mining',
+                ex + (mx - ex) * ti + (Math.random() - 0.5) * 2000,
+                ey + (my - ey) * ti + (Math.random() - 0.5) * 2000);
         }
     }
 

@@ -13,7 +13,7 @@ var ShipTemplates = (function () {
 
     // Template format: { id, name, faction, rarity, role, hullClass, blocks: [rows of codes] }
     // Rarity: 'common', 'uncommon', 'rare', 'elite'
-    // Role: 'patrol', 'fighter', 'frigate', 'destroyer', 'cruiser', 'battleship', 'carrier', 'trader', 'diplomat', 'stealth', 'scout'
+    // Role: 'patrol', 'fighter', 'frigate', 'destroyer', 'cruiser', 'battleship', 'carrier', 'trader', 'diplomat', 'stealth', 'scout', 'battle', 'research', 'miner'
 
     var _templates = [
 
@@ -110,6 +110,49 @@ var ShipTemplates = (function () {
                 ['.','hb','sb','pc','hb','.', '.'],
                 ['.','hb','ft','rb','hb','.', '.'],
                 ['.','hb','hb','hb','hb','.', '.'],
+                ['.','.','ei','ei','.','.', '.']
+            ]},
+
+        // --- Research & Mining ships ---
+        { id: 'earth_researcher', name: 'Owl Observatory', faction: 'earth', rarity: 'common', role: 'research', hullClass: 'corvette',
+            blocks: [
+                ['.','.','.','sa','.','.', '.'],
+                ['.','hb','hb','hb','hb','.', '.'],
+                ['.','sa','hb','hb','sa','.', '.'],
+                ['.','hb','ck','pc','hb','.', '.'],
+                ['.','hb','sb','ft','hb','.', '.'],
+                ['.','hb','hb','hb','hb','.', '.'],
+                ['.','.','ei','ei','.','.', '.']
+            ]},
+        { id: 'earth_miner', name: 'Badger Miner', faction: 'earth', rarity: 'common', role: 'miner', hullClass: 'corvette',
+            blocks: [
+                ['.','.','.','m1','.','.', '.'],
+                ['.','hb','hb','hb','hb','.', '.'],
+                ['.','cb','cb','cb','cb','.', '.'],
+                ['.','hb','ck','pc','hb','.', '.'],
+                ['.','cb','cb','ft','ft','.', '.'],
+                ['.','hb','hb','hb','hb','.', '.'],
+                ['.','.','ec','ec','.','.', '.']
+            ]},
+        { id: 'earth_adv_miner', name: 'Ibis Deep Driller', faction: 'earth', rarity: 'uncommon', role: 'miner', hullClass: 'frigate',
+            blocks: [
+                ['.','.','.','m2','.','.', '.'],
+                ['.','ha','hb','hb','ha','.', '.'],
+                ['.','cb','cb','cb','cb','.', '.'],
+                ['.','cb','cb','cb','cb','.', '.'],
+                ['.','ha','ck','pc','ha','.', '.'],
+                ['.','cb','sb','ft','cb','.', '.'],
+                ['.','ha','hb','hb','ha','.', '.'],
+                ['.','.','ei','ei','.','.', '.']
+            ]},
+        { id: 'earth_battlecruiser', name: 'Raptor Assault', faction: 'earth', rarity: 'uncommon', role: 'battle', hullClass: 'corvette',
+            blocks: [
+                ['.','wl','.','wl','.','.', '.'],
+                ['.','ha','ha','ha','.','.', '.'],
+                ['wl','ha','ck','ha','wl','.', '.'],
+                ['.','ha','pc','pf','.','.', '.'],
+                ['.','ha','sb','ft','.','.', '.'],
+                ['.','ha','ha','ha','.','.', '.'],
                 ['.','.','ei','ei','.','.', '.']
             ]},
 
@@ -251,6 +294,56 @@ var ShipTemplates = (function () {
                 ['.','hb','hb','hb','.','.', '.'],
                 ['.','.','ep','ep','.','.', '.']
             ]},
+        // --- Research & Mining ships ---
+        { id: 'mars_researcher', name: 'Probe Seeker', faction: 'mars', rarity: 'common', role: 'research', hullClass: 'corvette',
+            blocks: [
+                ['.','sa','.','sa','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['.','sa','hb','sa','.','.', '.'],
+                ['.','hb','ck','pc','.','.', '.'],
+                ['.','hb','sb','ft','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['.','.','ep','ep','.','.', '.']
+            ]},
+        { id: 'mars_adv_researcher', name: 'Olympus Lab', faction: 'mars', rarity: 'uncommon', role: 'research', hullClass: 'frigate',
+            blocks: [
+                ['.','sa','.','sa','.','.', '.'],
+                ['.','hb','hb','hb','hb','.', '.'],
+                ['.','sa','hb','hb','sa','.', '.'],
+                ['.','hb','ck','pc','hb','.', '.'],
+                ['.','hb','sb','pf','hb','.', '.'],
+                ['.','hb','ft','ft','hb','.', '.'],
+                ['.','hb','hb','hb','hb','.', '.'],
+                ['.','.','ep','ep','.','.', '.']
+            ]},
+        { id: 'mars_miner', name: 'Rust Digger', faction: 'mars', rarity: 'common', role: 'miner', hullClass: 'corvette',
+            blocks: [
+                ['.','.','.','m1','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['.','cb','cb','cb','.','.', '.'],
+                ['.','hb','ck','pc','.','.', '.'],
+                ['.','cb','cb','ft','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['.','.','ep','ep','.','.', '.']
+            ]},
+        { id: 'mars_raider', name: 'Scorpion Raider', faction: 'mars', rarity: 'common', role: 'battle', hullClass: 'fighter',
+            blocks: [
+                ['wl','wl','.','.','.'],
+                ['hb','hb','hb','.','.'],
+                ['.','ck','sb','.','.'],
+                ['hb','pc','ft','.','.'],
+                ['.','ep','ep','.','.']
+            ]},
+        { id: 'mars_assault', name: 'Vulcan Assault', faction: 'mars', rarity: 'uncommon', role: 'battle', hullClass: 'corvette',
+            blocks: [
+                ['.','wm','.','wm','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['wl','hb','ck','hb','wl','.', '.'],
+                ['.','hb','pc','pf','.','.', '.'],
+                ['.','hb','sb','ft','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['.','.','ep','ep','.','.', '.']
+            ]},
 
         // --- Rare (10%) ---
         { id: 'mars_destroyer', name: 'Sandstorm', faction: 'mars', rarity: 'rare', role: 'destroyer', hullClass: 'destroyer',
@@ -382,6 +475,26 @@ var ShipTemplates = (function () {
                 ['.','ha','pc','pf','ha','.', '.'],
                 ['.','ha','ft','ft','ha','.', '.'],
                 ['.','ha','hb','ha','ha','.', '.'],
+                ['.','.','ei','ei','.','.', '.']
+            ]},
+        { id: 'indie_miner', name: 'Prospector', faction: 'independent', rarity: 'common', role: 'miner', hullClass: 'corvette',
+            blocks: [
+                ['.','.','.','m1','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['.','cb','cb','cb','.','.', '.'],
+                ['.','hb','ck','pc','.','.', '.'],
+                ['.','cb','ft','ft','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['.','.','ec','ec','.','.', '.']
+            ]},
+        { id: 'indie_researcher', name: 'Stargazer', faction: 'independent', rarity: 'uncommon', role: 'research', hullClass: 'corvette',
+            blocks: [
+                ['.','.','.','sa','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
+                ['.','sa','hb','sa','.','.', '.'],
+                ['.','hb','ck','pc','.','.', '.'],
+                ['.','hb','sb','ft','.','.', '.'],
+                ['.','hb','hb','hb','.','.', '.'],
                 ['.','.','ei','ei','.','.', '.']
             ]}
     ];
