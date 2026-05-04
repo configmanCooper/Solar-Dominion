@@ -3312,6 +3312,21 @@ var UI = (function () {
             "Both factions are ignoring the outer rim. Opportunity for the bold.",
             "I heard Luna's considering breaking neutrality. That would change everything.",
             "There's talk of a ceasefire proposal. Markets are jittery."
+        ],
+        piracy_demand: [
+            "This is a toll zone. Pay up {amount} credits or we open fire.",
+            "Nice cargo you have there. Would be a shame if something happened to it.",
+            "Surrender {amount} {resource} and nobody gets hurt."
+        ],
+        piracy_yield: [
+            "Okay, okay! Take it, just don't shoot!",
+            "Fine... here's your {resource}. Parasites like you...",
+            "You win this time. But I'll remember this."
+        ],
+        piracy_refuse: [
+            "You don't have the firepower to back that up.",
+            "Try me. I'd rather fight than bow to a bandit.",
+            "Ha! You think this little ship scares me?"
         ]
     };
 
@@ -3415,6 +3430,9 @@ var UI = (function () {
             actions.appendChild(_makeActionBtn('\uD83D\uDDFA\uFE0F Ask Intel', 'info', function () { _npcIntel(npc); }));
             actions.appendChild(_makeActionBtn('\uD83D\uDCAC Ask about Rumors', 'info', function () { _npcRumors(npc); }));
             actions.appendChild(_makeActionBtn('\uD83D\uDD17 Request Tow', 'friendly', function () { _npcRequestTow(npc); }));
+            if (!Ship.isInEscapePod || !Ship.isInEscapePod()) {
+                actions.appendChild(_makeActionBtn('\uD83D\uDC80 Threaten', 'hostile', function () { _npcThreaten(npc); }));
+            }
             actions.appendChild(_makeActionBtn('\u2694\uFE0F Attack', 'hostile', function () { _npcAttack(npc); }));
         } else {
             actions.appendChild(_makeActionBtn('\uD83D\uDCE1 Hail', 'info', function () { _npcHail(npc); }));
@@ -3424,6 +3442,9 @@ var UI = (function () {
             actions.appendChild(_makeActionBtn('\uD83D\uDCAC Ask about the War', 'info', function () { _npcWarOpinion(npc); }));
             actions.appendChild(_makeActionBtn('\uD83E\uDD1D Propose Alliance', 'friendly', function () { _npcProposeAlliance(npc); }));
             actions.appendChild(_makeActionBtn('\uD83D\uDD17 Request Tow', 'friendly', function () { _npcRequestTow(npc); }));
+            if (!Ship.isInEscapePod || !Ship.isInEscapePod()) {
+                actions.appendChild(_makeActionBtn('\uD83D\uDC80 Threaten', 'hostile', function () { _npcThreaten(npc); }));
+            }
             actions.appendChild(_makeActionBtn('\u2694\uFE0F Attack', 'hostile', function () { _npcAttack(npc); }));
         }
         panel.appendChild(actions);
@@ -3463,12 +3484,26 @@ var UI = (function () {
     }
 
     function _npcHailHostile(npc) {
-        // 20% chance of de-escalation
-        if (Math.random() < 0.2) {
+        var ship = Ship.getShip();
+        var playerHpPct = (ship && ship.hp > 0 && ship.maxHp > 0) ? ship.hp / ship.maxHp : 0;
+        var npcHpPct = (npc.maxHp > 0) ? npc.hp / npc.maxHp : 1;
+        
+        // De-escalation chance depends on who's winning
+        var deescChance;
+        if (npcHpPct < playerHpPct - 0.2) {
+            deescChance = 0.30 + (playerHpPct - npcHpPct) * 0.2;
+        } else if (playerHpPct < npcHpPct - 0.2) {
+            deescChance = 0.03 + npcHpPct * 0.05;
+        } else {
+            deescChance = 0.12;
+        }
+        deescChance = Math.max(0.03, Math.min(0.40, deescChance));
+        
+        if (Math.random() < deescChance) {
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.hostile_hail_deescalate), npc));
             npc.hostile = false;
             showToast('Tension de-escalated with ' + npc.commander, 'success');
-            // Refresh panel
+            Ship.changeRelationship(npc.commander, 3);
             setTimeout(function () { _showNpcPanel({ npc: npc }); }, 500);
         } else {
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.hostile_hail), npc));
@@ -3563,16 +3598,153 @@ var UI = (function () {
     }
 
     function _npcTrade(npc) {
-        _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.trader_offer), npc));
-        // Simple trade: give the player some random resource
-        var ship = Ship.getShip();
-        if (ship && ship.inventory) {
-            var resources = ['metal', 'electronics', 'composites', 'fuel_cells'];
-            var res = _pickRandom(resources);
-            var amount = 3 + Math.floor(Math.random() * 8);
-            ship.inventory[res] = (ship.inventory[res] || 0) + amount;
-            showToast('Traded: +' + amount + ' ' + res, 'success');
+        // Generate NPC cargo if they don't have any
+        if (!npc.cargo || Object.keys(npc.cargo).length === 0) {
+            npc.cargo = {};
+            var allRes = Object.keys(Config.RESOURCES);
+            var rawRes = ['metal', 'rare_minerals', 'water'];
+            if (npc.behavior === 'trade') {
+                var count = 3 + Math.floor(Math.random() * 4);
+                for (var ti = 0; ti < count; ti++) {
+                    var r = allRes[Math.floor(Math.random() * allRes.length)];
+                    npc.cargo[r] = (npc.cargo[r] || 0) + 5 + Math.floor(Math.random() * 16);
+                }
+            } else if (npc.behavior === 'mining') {
+                for (var mi = 0; mi < rawRes.length; mi++) {
+                    if (Math.random() < 0.8) npc.cargo[rawRes[mi]] = 10 + Math.floor(Math.random() * 21);
+                }
+            } else {
+                if (Math.random() < 0.6) {
+                    var r2 = allRes[Math.floor(Math.random() * allRes.length)];
+                    npc.cargo[r2] = 2 + Math.floor(Math.random() * 4);
+                }
+                if (Math.random() < 0.3) {
+                    var r3 = allRes[Math.floor(Math.random() * allRes.length)];
+                    npc.cargo[r3] = (npc.cargo[r3] || 0) + 2 + Math.floor(Math.random() * 4);
+                }
+            }
         }
+        // Generate NPC credits if not set
+        npc.credits = npc.credits || (npc.behavior === 'trade' ? 2000 + Math.floor(Math.random() * 3000) : 500 + Math.floor(Math.random() * 1000));
+
+        _renderTradeUI(npc);
+    }
+
+    function _getTradePrice(resourceKey, buying, npc) {
+        var base = Config.RESOURCES[resourceKey] ? Config.RESOURCES[resourceKey].basePrice : 10;
+        var rel = Ship.getRelationship(npc.commander);
+        var mult = buying ? 1.2 : 0.8;
+        // Relationship modifier
+        if (rel.rep > 30) mult *= buying ? 0.9 : 1.1;
+        else if (rel.rep < -10) mult *= buying ? 1.3 : 0.7;
+        // Trader discount
+        if (npc.behavior === 'trade') mult *= buying ? 0.9 : 0.9;
+        return Math.max(1, Math.round(base * mult));
+    }
+
+    function _renderTradeUI(npc) {
+        var area = document.getElementById('npcDialogueArea');
+        if (!area) return;
+        var ship = Ship.getShip();
+        if (!ship || !ship.inventory) return;
+
+        var html = '<div id="npcTradePanel">';
+        html += '<div class="trade-section-header">TRADE with CDR. ' + (npc.commander || 'Unknown') + '</div>';
+
+        // Player cargo (sell)
+        html += '<div class="trade-section"><div class="trade-section-header" style="color:#f80;">YOUR CARGO</div>';
+        var hasPlayerGoods = false;
+        for (var pk in ship.inventory) {
+            if (ship.inventory[pk] <= 0) continue;
+            var rDef = Config.RESOURCES[pk];
+            if (!rDef) continue;
+            hasPlayerGoods = true;
+            var sellPrice = _getTradePrice(pk, false, npc);
+            html += '<div class="trade-row">';
+            html += '<span class="trade-item-name">' + (rDef.icon || '') + ' ' + rDef.name + '</span>';
+            html += '<span class="trade-item-qty">x' + ship.inventory[pk] + '</span>';
+            html += '<span class="trade-item-price">' + sellPrice + '¢</span>';
+            html += '<button class="trade-btn sell" onclick="UI._tradeAction(\'' + pk + '\',1,\'sell\')">Sell 1</button>';
+            html += '<button class="trade-btn sell" onclick="UI._tradeAction(\'' + pk + '\',5,\'sell\')">Sell 5</button>';
+            html += '</div>';
+        }
+        if (!hasPlayerGoods) html += '<div style="color:#666;font-size:11px;">No cargo to sell.</div>';
+        html += '</div>';
+
+        // NPC cargo (buy)
+        html += '<div class="trade-section"><div class="trade-section-header" style="color:#0af;">THEIR CARGO</div>';
+        var hasNpcGoods = false;
+        if (npc.cargo) {
+            for (var nk in npc.cargo) {
+                if (npc.cargo[nk] <= 0) continue;
+                var nDef = Config.RESOURCES[nk];
+                if (!nDef) continue;
+                hasNpcGoods = true;
+                var buyPrice = _getTradePrice(nk, true, npc);
+                html += '<div class="trade-row">';
+                html += '<span class="trade-item-name">' + (nDef.icon || '') + ' ' + nDef.name + '</span>';
+                html += '<span class="trade-item-qty">x' + npc.cargo[nk] + '</span>';
+                html += '<span class="trade-item-price">' + buyPrice + '¢</span>';
+                html += '<button class="trade-btn" onclick="UI._tradeAction(\'' + nk + '\',1,\'buy\')">Buy 1</button>';
+                html += '<button class="trade-btn" onclick="UI._tradeAction(\'' + nk + '\',5,\'buy\')">Buy 5</button>';
+                html += '</div>';
+            }
+        }
+        if (!hasNpcGoods) html += '<div style="color:#666;font-size:11px;">No goods available.</div>';
+        html += '</div>';
+
+        // Credits display
+        html += '<div class="trade-credits">';
+        html += 'Your Credits: ' + Economy.getCredits() + ' | Their Credits: ' + (npc.credits || 0);
+        html += '</div>';
+        html += '<div style="text-align:center;margin-top:6px;"><button class="trade-btn" onclick="UI._closeTradeUI()">Close Trade</button></div>';
+        html += '</div>';
+
+        area.innerHTML = html;
+    }
+
+    function _tradeAction(resource, amount, type) {
+        var npc = _npcPanelTarget;
+        if (!npc) return;
+        var ship = Ship.getShip();
+        if (!ship || !ship.inventory) return;
+
+        if (type === 'buy') {
+            var buyPrice = _getTradePrice(resource, true, npc) * amount;
+            var npcHas = (npc.cargo && npc.cargo[resource]) ? npc.cargo[resource] : 0;
+            var actualBuy = Math.min(amount, npcHas);
+            if (actualBuy <= 0) { showToast('NPC has none to sell.', 'warning'); return; }
+            var actualCost = _getTradePrice(resource, true, npc) * actualBuy;
+            if (Economy.getCredits() < actualCost) { showToast('Not enough credits!', 'warning'); return; }
+            Economy.spendCredits(actualCost);
+            ship.inventory[resource] = (ship.inventory[resource] || 0) + actualBuy;
+            npc.cargo[resource] -= actualBuy;
+            if (npc.cargo[resource] <= 0) delete npc.cargo[resource];
+            npc.credits = (npc.credits || 0) + actualCost;
+            Ship.changeRelationship(npc.commander, 1);
+            showToast('Bought ' + actualBuy + ' ' + (Config.RESOURCES[resource] ? Config.RESOURCES[resource].name : resource), 'success');
+        } else {
+            var sellPrice = _getTradePrice(resource, false, npc);
+            var playerHas = ship.inventory[resource] || 0;
+            var actualSell = Math.min(amount, playerHas);
+            if (actualSell <= 0) { showToast('You have none to sell.', 'warning'); return; }
+            var revenue = sellPrice * actualSell;
+            if ((npc.credits || 0) < revenue) { showToast('NPC can\'t afford that!', 'warning'); return; }
+            ship.inventory[resource] -= actualSell;
+            if (ship.inventory[resource] <= 0) delete ship.inventory[resource];
+            npc.credits -= revenue;
+            if (!npc.cargo) npc.cargo = {};
+            npc.cargo[resource] = (npc.cargo[resource] || 0) + actualSell;
+            Economy.addCredits(revenue);
+            Ship.changeRelationship(npc.commander, 1);
+            showToast('Sold ' + actualSell + ' ' + (Config.RESOURCES[resource] ? Config.RESOURCES[resource].name : resource), 'success');
+        }
+        _renderTradeUI(npc);
+    }
+
+    function _closeTradeUI() {
+        var area = document.getElementById('npcDialogueArea');
+        if (area) area.textContent = 'Trade complete. Select another action or close.';
     }
 
     function _npcRumors(npc) {
@@ -3736,6 +3908,36 @@ var UI = (function () {
         if (npc.behavior === 'trade') chance += 20;
         chance = Math.max(10, Math.min(90, chance));
 
+        // Behavior-based busy refusal
+        var busyRefuseChance = 0;
+        var busyMsg = '';
+        if (npc.behavior === 'battle' && npc.fleetMission) {
+            busyRefuseChance = 1.0;
+            busyMsg = "I'm on a combat mission. No time for towing.";
+        } else if (npc.behavior === 'battle') {
+            busyRefuseChance = 0.70;
+            busyMsg = "Combat operations take priority. Find someone else.";
+        } else if (npc.behavior === 'mining') {
+            busyRefuseChance = 0.60;
+            busyMsg = "I'm busy mining. Can't stop.";
+        } else if (npc.behavior === 'diplomacy') {
+            busyRefuseChance = 0.60;
+            busyMsg = "I'm on diplomatic business.";
+        } else if (npc.behavior === 'research') {
+            busyRefuseChance = 0.50;
+            busyMsg = "My research can't be interrupted.";
+        } else if (npc.behavior === 'patrol') {
+            busyRefuseChance = 0.30;
+            busyMsg = "Patrol duties come first. Sorry.";
+        } else if (npc.behavior === 'trade') {
+            busyRefuseChance = 0.10;
+            busyMsg = "Hmm, I've got deliveries... but okay, maybe.";
+        }
+        if (busyRefuseChance > 0 && Math.random() < busyRefuseChance) {
+            _setDialogue(busyMsg);
+            return;
+        }
+
         if (Math.random() * 100 < chance) {
             // Accepted
             Economy.spendCredits(cost);
@@ -3752,6 +3954,231 @@ var UI = (function () {
             // Refused
             Ship.changeRelationship(npc.commander, -1);
             _setDialogue(_pickRandom(_TOW_DIALOGUE.refuse));
+        }
+    }
+
+    // ─── Piracy & Threaten Functions ────────────────────────────────
+
+    function _findNpcById(id) {
+        var npcs = World.getNPCs();
+        for (var i = 0; i < npcs.length; i++) {
+            if (npcs[i].id === id) return npcs[i];
+        }
+        return null;
+    }
+
+    function _closePiracyPanel() {
+        var p = document.getElementById('piracyDemandPanel');
+        if (p) p.remove();
+    }
+
+    function _piracyPay(npcId) {
+        var npc = _findNpcById(npcId);
+        if (!npc || !npc._piracyDemandData) return;
+        var cost = npc._piracyDemandData.credits;
+        if (Economy.getCredits() < cost) {
+            showToast('Not enough credits to pay!', 'warning');
+            return;
+        }
+        Economy.spendCredits(cost);
+        npc.credits = (npc.credits || 0) + cost;
+        Ship.changeRelationship(npc.commander, -5);
+        showToast('Paid ' + cost + ' credits to ' + npc.commander, 'warning');
+        _closePiracyPanel();
+    }
+
+    function _piracyGive(npcId) {
+        var npc = _findNpcById(npcId);
+        if (!npc || !npc._piracyDemandData) return;
+        var ship = Ship.getShip();
+        if (!ship || !ship.inventory) return;
+        var res = npc._piracyDemandData.resource;
+        var amt = npc._piracyDemandData.amount;
+        if (!res || (ship.inventory[res] || 0) < amt) {
+            showToast('Not enough ' + res + ' to give!', 'warning');
+            return;
+        }
+        ship.inventory[res] -= amt;
+        if (ship.inventory[res] <= 0) delete ship.inventory[res];
+        if (!npc.cargo) npc.cargo = {};
+        npc.cargo[res] = (npc.cargo[res] || 0) + amt;
+        Ship.changeRelationship(npc.commander, -5);
+        var rName = Config.RESOURCES[res] ? Config.RESOURCES[res].name : res;
+        showToast('Gave ' + amt + ' ' + rName + ' to ' + npc.commander, 'warning');
+        _closePiracyPanel();
+    }
+
+    function _piracyRefuse(npcId) {
+        var npc = _findNpcById(npcId);
+        if (!npc) return;
+        npc.hostile = true;
+        Ship.changeRelationship(npc.commander, -10);
+        showToast(npc.commander + ' is attacking!', 'combat');
+        _closePiracyPanel();
+    }
+
+    function _piracyFight(npcId) {
+        var npc = _findNpcById(npcId);
+        if (!npc) return;
+        npc.hostile = true;
+        Ship.changeRelationship(npc.commander, -10);
+        Ship.setAttackTarget(npc.id);
+        showToast('Engaging ' + npc.commander + '!', 'combat');
+        _closePiracyPanel();
+    }
+
+    function _npcThreaten(npc) {
+        var ship = Ship.getShip();
+        if (!ship) return;
+
+        // Calculate power comparison
+        var grid = ship.grid || (typeof ShipGrid !== 'undefined' && ShipGrid.getGrid ? ShipGrid.getGrid() : null);
+        var playerWeapons = grid && grid.stats ? grid.stats.weapons : [];
+        var playerPower = 0;
+        for (var w = 0; w < playerWeapons.length; w++) {
+            playerPower += (playerWeapons[w].def && playerWeapons[w].def.damage) ? playerWeapons[w].def.damage : 5;
+        }
+        playerPower += (ship.shieldHp || 0);
+
+        var npcPower = 0;
+        if (npc.weaponDef && npc.weaponDef.damage) npcPower += npc.weaponDef.damage;
+        else npcPower += 5;
+        npcPower += (npc.maxShieldHp || 0);
+
+        var successChance;
+        if (playerPower > npcPower * 1.5) successChance = 0.70;
+        else if (playerPower > npcPower) successChance = 0.50;
+        else if (playerPower > npcPower * 0.7) successChance = 0.30;
+        else successChance = 0.10;
+        if (npc.morale && npc.morale < 40) successChance += 0.15;
+        var rel = Ship.getRelationship(npc.commander);
+        if (rel.rep > 30) successChance += 0.10;
+        successChance = Math.min(0.90, successChance);
+
+        // Calculate demand
+        var demandCredits = 300 + Math.floor(Math.random() * 1200);
+        var demandResource = null;
+        var demandAmount = 0;
+        if (npc.cargo) {
+            var bestKey = null, bestVal = 0;
+            for (var ck in npc.cargo) {
+                if (npc.cargo[ck] > 0) {
+                    var bp = Config.RESOURCES[ck] ? Config.RESOURCES[ck].basePrice : 1;
+                    if (bp * npc.cargo[ck] > bestVal) { bestVal = bp * npc.cargo[ck]; bestKey = ck; }
+                }
+            }
+            if (bestKey) { demandResource = bestKey; demandAmount = npc.cargo[bestKey]; }
+        }
+
+        // Show demand options in dialogue area
+        var area = document.getElementById('npcDialogueArea');
+        if (!area) return;
+        var html = '<div style="color:#ff4444;font-size:13px;margin-bottom:8px;">Choose your demand:</div>';
+        html += '<button class="trade-btn sell" style="display:block;margin:4px auto;padding:6px 12px;" onclick="UI._executeThreaten(\'' + npc.id + '\',\'credits\',' + demandCredits + ')">💰 Demand ' + demandCredits + ' Credits</button>';
+        if (demandResource && demandAmount > 0) {
+            var rName = Config.RESOURCES[demandResource] ? Config.RESOURCES[demandResource].name : demandResource;
+            html += '<button class="trade-btn sell" style="display:block;margin:4px auto;padding:6px 12px;" onclick="UI._executeThreaten(\'' + npc.id + '\',\'cargo\',0)">📦 Demand ' + demandAmount + ' ' + rName + '</button>';
+        }
+        html += '<div style="color:#888;font-size:10px;margin-top:6px;">Success chance: ~' + Math.round(successChance * 100) + '%</div>';
+        area.innerHTML = html;
+    }
+
+    function _executeThreaten(npcId, type, amount) {
+        var npc = _findNpcById(npcId);
+        if (!npc) return;
+        var ship = Ship.getShip();
+        if (!ship) return;
+
+        // Recalculate success chance
+        var grid = ship.grid || (typeof ShipGrid !== 'undefined' && ShipGrid.getGrid ? ShipGrid.getGrid() : null);
+        var playerWeapons = grid && grid.stats ? grid.stats.weapons : [];
+        var playerPower = 0;
+        for (var w = 0; w < playerWeapons.length; w++) {
+            playerPower += (playerWeapons[w].def && playerWeapons[w].def.damage) ? playerWeapons[w].def.damage : 5;
+        }
+        playerPower += (ship.shieldHp || 0);
+        var npcPower = 0;
+        if (npc.weaponDef && npc.weaponDef.damage) npcPower += npc.weaponDef.damage;
+        else npcPower += 5;
+        npcPower += (npc.maxShieldHp || 0);
+
+        var successChance;
+        if (playerPower > npcPower * 1.5) successChance = 0.70;
+        else if (playerPower > npcPower) successChance = 0.50;
+        else if (playerPower > npcPower * 0.7) successChance = 0.30;
+        else successChance = 0.10;
+        if (npc.morale && npc.morale < 40) successChance += 0.15;
+        var rel = Ship.getRelationship(npc.commander);
+        if (rel.rep > 30) successChance += 0.10;
+        successChance = Math.min(0.90, successChance);
+
+        if (Math.random() < successChance) {
+            // Success!
+            if (type === 'credits') {
+                var take = Math.min(amount, npc.credits || 0);
+                if (take > 0) {
+                    npc.credits -= take;
+                    Economy.addCredits(take);
+                    showToast('Took ' + take + ' credits from ' + npc.commander + '!', 'success');
+                } else {
+                    showToast(npc.commander + ' has no credits to give.', 'info');
+                }
+            } else {
+                // Take most valuable cargo
+                var bestKey = null, bestVal = 0;
+                if (npc.cargo) {
+                    for (var ck in npc.cargo) {
+                        if (npc.cargo[ck] > 0) {
+                            var bp = Config.RESOURCES[ck] ? Config.RESOURCES[ck].basePrice : 1;
+                            if (bp * npc.cargo[ck] > bestVal) { bestVal = bp * npc.cargo[ck]; bestKey = ck; }
+                        }
+                    }
+                }
+                if (bestKey) {
+                    var amt = npc.cargo[bestKey];
+                    ship.inventory[bestKey] = (ship.inventory[bestKey] || 0) + amt;
+                    delete npc.cargo[bestKey];
+                    var rName = Config.RESOURCES[bestKey] ? Config.RESOURCES[bestKey].name : bestKey;
+                    showToast('Took ' + amt + ' ' + rName + ' from ' + npc.commander + '!', 'success');
+                } else {
+                    showToast(npc.commander + ' has no cargo.', 'info');
+                }
+            }
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.piracy_yield), npc));
+            Ship.changeRelationship(npc.commander, -25);
+            // 40% chance NPC reports you
+            if (Math.random() < 0.4 && npc.faction !== Config.FACTION.INDEPENDENT) {
+                if (typeof Factions !== 'undefined' && Factions.changeRep) {
+                    Factions.changeRep(npc.faction, -10);
+                }
+                showToast('\u26A0\uFE0F ' + npc.commander + ' reported your piracy to ' + npc.faction + '!', 'warning');
+                // Spawn retaliation patrol ships if Earth or Mars
+                if (npc.faction === Config.FACTION.EARTH || npc.faction === Config.FACTION.MARS) {
+                    for (var sp = 0; sp < 2; sp++) {
+                        var retNpc = World.spawnNPC({
+                            label: 'retaliation',
+                            faction: npc.faction,
+                            behavior: 'patrol',
+                            x: ship.x + (Math.random() - 0.5) * 800,
+                            y: ship.y + (Math.random() - 0.5) * 800,
+                            hostile: true
+                        });
+                    }
+                }
+            }
+        } else {
+            // Failure
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.piracy_refuse), npc));
+            npc.hostile = true;
+            Ship.changeRelationship(npc.commander, -15);
+            // 60% chance they report
+            if (Math.random() < 0.6 && npc.faction !== Config.FACTION.INDEPENDENT) {
+                if (typeof Factions !== 'undefined' && Factions.changeRep) {
+                    Factions.changeRep(npc.faction, -5);
+                }
+                showToast('\u26A0\uFE0F ' + npc.commander + ' reported your piracy to ' + npc.faction + '!', 'warning');
+            }
+            showToast(npc.commander + ' refuses and attacks!', 'combat');
         }
     }
 
@@ -3791,6 +4218,51 @@ var UI = (function () {
 
         Events.on('tow_cancelled', function () {
             showToast('Tow cancelled. No refund.', 'info');
+        });
+
+        // Piracy demand from NPC
+        Events.on('piracy_demand', function (data) {
+            var npc = data.npc;
+            var ship = Ship.getShip();
+            if (!ship) return;
+            var demandCredits = 500 + Math.floor(Math.random() * 1500);
+            var playerResources = [];
+            if (ship.inventory) {
+                for (var rk in ship.inventory) {
+                    if (ship.inventory[rk] > 0) playerResources.push(rk);
+                }
+            }
+            var demandResource = playerResources.length > 0 ? playerResources[Math.floor(Math.random() * playerResources.length)] : null;
+            var demandAmount = demandResource ? Math.min(5 + Math.floor(Math.random() * 11), ship.inventory[demandResource]) : 0;
+            var rName = demandResource && Config.RESOURCES[demandResource] ? Config.RESOURCES[demandResource].name : 'goods';
+
+            // Store demand data on npc
+            npc._piracyDemandData = { credits: demandCredits, resource: demandResource, amount: demandAmount };
+
+            // Show piracy panel
+            var existing = document.getElementById('piracyDemandPanel');
+            if (existing) existing.remove();
+
+            var panel = document.createElement('div');
+            panel.id = 'piracyDemandPanel';
+            panel.className = 'piracy-demand';
+            panel.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:2000;min-width:350px;max-width:450px;font-family:monospace;';
+
+            var html = '<div class="piracy-demand-text">\u26A0\uFE0F CDR. ' + (npc.commander || 'Unknown') + ' is demanding tribute!</div>';
+            html += '<div style="color:#ccc;font-size:12px;margin-bottom:12px;">"' +
+                _formatDialogue(_pickRandom(_NPC_DIALOGUE.piracy_demand), npc)
+                    .replace(/\{amount\}/g, demandCredits)
+                    .replace(/\{resource\}/g, rName) + '"</div>';
+            html += '<div style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;">';
+            html += '<button class="piracy-btn" style="background:rgba(255,200,0,0.3);border:1px solid #ff0;color:#ff0;" onclick="UI._piracyPay(\'' + npc.id + '\')">💰 Pay ' + demandCredits + ' credits</button>';
+            if (demandResource && demandAmount > 0) {
+                html += '<button class="piracy-btn" style="background:rgba(0,200,100,0.3);border:1px solid #0c6;color:#0c6;" onclick="UI._piracyGive(\'' + npc.id + '\')">📦 Give ' + demandAmount + ' ' + rName + '</button>';
+            }
+            html += '<button class="piracy-btn" style="background:rgba(200,100,0,0.3);border:1px solid #c60;color:#c60;" onclick="UI._piracyRefuse(\'' + npc.id + '\')">🖕 Refuse</button>';
+            html += '<button class="piracy-btn" style="background:rgba(255,0,0,0.3);border:1px solid #f00;color:#f00;" onclick="UI._piracyFight(\'' + npc.id + '\')">⚔️ Fight</button>';
+            html += '</div>';
+
+            document.body.appendChild(panel);
         });
     }
 
@@ -4077,6 +4549,15 @@ var UI = (function () {
         _godInvincible: _godInvincible,
         _godRep: _godRep,
         // Location panel
-        _closeLocationPanel: _closeLocationPanel
+        _closeLocationPanel: _closeLocationPanel,
+        // Trade
+        _tradeAction: _tradeAction,
+        _closeTradeUI: _closeTradeUI,
+        // Piracy
+        _piracyPay: _piracyPay,
+        _piracyGive: _piracyGive,
+        _piracyRefuse: _piracyRefuse,
+        _piracyFight: _piracyFight,
+        _executeThreaten: _executeThreaten
     };
 })();

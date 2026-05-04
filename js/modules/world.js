@@ -314,6 +314,9 @@ var World = (function () {
         }
         npc.morale = 50 + Math.floor(Math.random() * 50);
         npc.disposition = npc.faction;
+        npc.credits = npc.behavior === 'trade' ? 2000 + Math.floor(Math.random() * 3000) :
+                      npc.behavior === 'mining' ? 500 + Math.floor(Math.random() * 1000) :
+                      200 + Math.floor(Math.random() * 500);
         _npcs.push(npc);
         return npc;
     }
@@ -405,6 +408,31 @@ var World = (function () {
             var npc = _npcs[i];
             if (npc.dead) { _npcs.splice(i, 1); continue; }
             _updateNPCAI(npc);
+        }
+
+        // Piracy behavior — NPCs near player may demand tribute
+        var playerShip = Ship.getShip();
+        if (playerShip && !playerShip.docked) {
+            for (var pi = 0; pi < _npcs.length; pi++) {
+                var pnpc = _npcs[pi];
+                if (pnpc.dead || pnpc.hostile || pnpc.allied || pnpc._piracyDemanded) continue;
+                if (pnpc.behavior !== 'patrol' && pnpc.behavior !== 'battle') continue;
+                var pdx = pnpc.x - playerShip.x, pdy = pnpc.y - playerShip.y;
+                var pDist = Math.sqrt(pdx * pdx + pdy * pdy);
+                if (pDist > 600) continue;
+
+                var piracyChance = 0;
+                if (pnpc.faction === Config.FACTION.INDEPENDENT) {
+                    piracyChance = 0.15;
+                } else if (pnpc.morale && pnpc.morale < 30) {
+                    piracyChance = 0.05;
+                }
+                if (piracyChance > 0 && Math.random() < piracyChance) {
+                    pnpc._piracyDemanded = true;
+                    pnpc._piracyTimer = 100;
+                    Events.emit('piracy_demand', { npc: pnpc });
+                }
+            }
         }
 
         // NPC respawning
@@ -839,7 +867,13 @@ var World = (function () {
                     x: n.x, y: n.y, angle: n.angle, hp: n.hp, maxHp: n.maxHp,
                     shieldHp: n.shieldHp, maxShieldHp: n.maxShieldHp,
                     patrolCenter: n.patrolCenter, dead: n.dead,
-                    towTarget: n.towTarget || null
+                    towTarget: n.towTarget || null,
+                    credits: n.credits || 0,
+                    cargo: n.cargo || {},
+                    commander: n.commander || null,
+                    morale: n.morale || 50,
+                    templateId: n.templateId || null,
+                    templateName: n.templateName || null
                 };
             }),
             nextId: _nextId
@@ -929,7 +963,13 @@ var World = (function () {
                     patrolCenter: sn.patrolCenter || { x: sn.x, y: sn.y },
                     patrolRadius: 400 + Math.random() * 300,
                     destX: sn.x, destY: sn.y,
-                    aiTimer: 0, dead: false
+                    aiTimer: 0, dead: false,
+                    credits: sn.credits || 0,
+                    cargo: sn.cargo || {},
+                    commander: sn.commander || null,
+                    morale: sn.morale || 50,
+                    templateId: sn.templateId || null,
+                    templateName: sn.templateName || null
                 };
                 _npcs.push(npc);
             }
