@@ -456,6 +456,23 @@ var World = (function () {
     }
 
     function _updateNPCAI(npc) {
+        // Tow target override — NPC navigating to tow destination
+        if (npc.towTarget) {
+            var tx = npc.towTarget.x - npc.x, ty = npc.towTarget.y - npc.y;
+            var td = Math.sqrt(tx * tx + ty * ty);
+            if (td < 50) {
+                // Arrived at tow destination
+                var destId = npc.towTarget.destId;
+                npc.towTarget = null;
+                Events.emit('tow_arrived', { npcId: npc.id, destId: destId });
+            } else {
+                npc.angle = Math.atan2(ty, tx);
+                npc.x += Math.cos(npc.angle) * npc.speed;
+                npc.y += Math.sin(npc.angle) * npc.speed;
+            }
+            return;
+        }
+
         // Fleet mission override — ships on fleet attack navigate to mission target
         if (npc.fleetMission) {
             var mission = Factions.getFleetAttack(npc.fleetMission);
@@ -821,7 +838,8 @@ var World = (function () {
                     id: n.id, faction: n.faction, behavior: n.behavior,
                     x: n.x, y: n.y, angle: n.angle, hp: n.hp, maxHp: n.maxHp,
                     shieldHp: n.shieldHp, maxShieldHp: n.maxShieldHp,
-                    patrolCenter: n.patrolCenter, dead: n.dead
+                    patrolCenter: n.patrolCenter, dead: n.dead,
+                    towTarget: n.towTarget || null
                 };
             }),
             nextId: _nextId

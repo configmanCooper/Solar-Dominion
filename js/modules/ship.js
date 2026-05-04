@@ -11,6 +11,8 @@ var Ship = (function () {
     var _escapePodDest = null;
     var _escapePodHailing = false;
     var _lastHailTime = 0;
+    var _relationships = {};
+    var _towState = null;
 
     function _defaultShip() {
         // Build starter grid from moon_patrol template
@@ -457,6 +459,34 @@ var Ship = (function () {
         return { success: false, message: declines[Math.floor(Math.random() * declines.length)] };
     }
 
+    // ─── Relationship System ─────────────────────────────────────────
+    function getRelationship(commanderName) {
+        return _relationships[commanderName] || { rep: 0, interactions: 0, lastSeen: 0 };
+    }
+
+    function changeRelationship(commanderName, amount) {
+        if (!_relationships[commanderName]) {
+            _relationships[commanderName] = { rep: 0, interactions: 0, lastSeen: 0 };
+        }
+        var r = _relationships[commanderName];
+        r.rep = Math.max(-100, Math.min(100, r.rep + amount));
+        r.interactions++;
+        r.lastSeen = Date.now();
+    }
+
+    function getRelationships() { return _relationships; }
+
+    // ─── Tow System ─────────────────────────────────────────────────
+    function getTowState() { return _towState; }
+
+    function startTow(npcId, destId, destName) {
+        _towState = { npcId: npcId, destId: destId, destName: destName, active: true };
+    }
+
+    function endTow() {
+        _towState = null;
+    }
+
     function handleInput() {
         if (_ship.docked) {
             if (Input.justPressed('DOCK')) {
@@ -488,6 +518,40 @@ var Ship = (function () {
                     _ship.y += Math.sin(_ship.angle) * podSpeed;
                 }
             }
+            return;
+        }
+
+        // Tow auto-navigation
+        if (_towState && _towState.active) {
+            var npcs = World.getNPCs();
+            var towNpc = null;
+            for (var ti = 0; ti < npcs.length; ti++) {
+                if (npcs[ti].id === _towState.npcId && !npcs[ti].dead) { towNpc = npcs[ti]; break; }
+            }
+            if (!towNpc) {
+                // NPC died or disappeared — tow breaks
+                _towState = null;
+                Events.emit('tow_broken', { reason: 'NPC lost' });
+                return;
+            }
+            // Cancel tow on Escape press
+            if (Input.justPressed('ESCAPE')) {
+                towNpc.towTarget = null;
+                _towState = null;
+                Events.emit('tow_cancelled', {});
+                return;
+            }
+            // Follow NPC — stay 30px behind
+            var tdx = towNpc.x - _ship.x, tdy = towNpc.y - _ship.y;
+            var tDist = Math.sqrt(tdx * tdx + tdy * tdy);
+            if (tDist > 30) {
+                _ship.angle = Math.atan2(tdy, tdx);
+                var towSpeed = towNpc.speed || 2;
+                _ship.x += Math.cos(_ship.angle) * towSpeed;
+                _ship.y += Math.sin(_ship.angle) * towSpeed;
+            }
+            _ship.vx = 0;
+            _ship.vy = 0;
             return;
         }
 
@@ -664,7 +728,9 @@ var Ship = (function () {
             inventory: JSON.parse(JSON.stringify(_ship.inventory)),
             activeWeaponIdx: _activeWeaponIdx,
             escapePodActive: _escapePodActive,
-            escapePodDest: _escapePodDest
+            escapePodDest: _escapePodDest,
+            relationships: _relationships,
+            towState: _towState
         };
         return data;
     }
@@ -686,6 +752,8 @@ var Ship = (function () {
         _activeWeaponIdx = data.activeWeaponIdx || 0;
         _escapePodActive = data.escapePodActive || false;
         _escapePodDest = data.escapePodDest || null;
+        _relationships = data.relationships || {};
+        _towState = data.towState || null;
         if (!_escapePodActive) {
             _recalcStats();
         } else {
@@ -735,6 +803,12 @@ var Ship = (function () {
         getEscapePodDest: getEscapePodDest,
         activateEscapePod: activateEscapePod,
         hailNearbyShip: hailNearbyShip,
+        getRelationship: getRelationship,
+        changeRelationship: changeRelationship,
+        getRelationships: getRelationships,
+        getTowState: getTowState,
+        startTow: startTow,
+        endTow: endTow,
         serialize: serialize,
         deserialize: deserialize
     };

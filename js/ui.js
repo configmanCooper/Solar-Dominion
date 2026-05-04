@@ -228,6 +228,7 @@ var UI = (function () {
 
     function handleInput() {
         _updateEscapePodUI();
+        _updateTowUI();
         if (Input.justPressed('ESCAPE')) {
             // Close NPC panel if open
             if (_npcPanel) {
@@ -3390,6 +3391,12 @@ var UI = (function () {
         stats.innerHTML = 'Ship: ' + (npc.templateName || npc.templateId || 'Unknown') +
             ' | HP: ' + hpPct + '% | Shield: ' + shPct + '%' +
             '<br>Role: ' + (npc.behavior || 'patrol') + ' | Morale: ' + (npc.morale || 50);
+        // Relationship indicator
+        var rel = Ship.getRelationship(npc.commander);
+        var relLabel = rel.rep > 50 ? 'Trusted Ally' : rel.rep > 20 ? 'Friendly' : rel.rep > 0 ? 'Acquaintance' : rel.rep > -20 ? 'Neutral' : rel.rep > -50 ? 'Unfriendly' : 'Hostile';
+        var relColor = rel.rep > 20 ? '#4f4' : rel.rep > 0 ? '#8f8' : rel.rep > -20 ? '#ff8' : '#f44';
+        stats.innerHTML += '<br>Relationship: <span style="color:' + relColor + '">' + relLabel + ' (' + (rel.rep > 0 ? '+' : '') + rel.rep + ')</span>';
+        if (rel.interactions > 0) stats.innerHTML += ' | Interactions: ' + rel.interactions;
         panel.appendChild(stats);
 
         // Actions
@@ -3407,6 +3414,7 @@ var UI = (function () {
             actions.appendChild(_makeActionBtn('\uD83D\uDCB0 Offer Trade', 'friendly', function () { _npcTrade(npc); }));
             actions.appendChild(_makeActionBtn('\uD83D\uDDFA\uFE0F Ask Intel', 'info', function () { _npcIntel(npc); }));
             actions.appendChild(_makeActionBtn('\uD83D\uDCAC Ask about Rumors', 'info', function () { _npcRumors(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83D\uDD17 Request Tow', 'friendly', function () { _npcRequestTow(npc); }));
             actions.appendChild(_makeActionBtn('\u2694\uFE0F Attack', 'hostile', function () { _npcAttack(npc); }));
         } else {
             actions.appendChild(_makeActionBtn('\uD83D\uDCE1 Hail', 'info', function () { _npcHail(npc); }));
@@ -3415,6 +3423,7 @@ var UI = (function () {
             actions.appendChild(_makeActionBtn('\uD83D\uDDFA\uFE0F Ask Intel', 'info', function () { _npcIntel(npc); }));
             actions.appendChild(_makeActionBtn('\uD83D\uDCAC Ask about the War', 'info', function () { _npcWarOpinion(npc); }));
             actions.appendChild(_makeActionBtn('\uD83E\uDD1D Propose Alliance', 'friendly', function () { _npcProposeAlliance(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83D\uDD17 Request Tow', 'friendly', function () { _npcRequestTow(npc); }));
             actions.appendChild(_makeActionBtn('\u2694\uFE0F Attack', 'hostile', function () { _npcAttack(npc); }));
         }
         panel.appendChild(actions);
@@ -3450,6 +3459,7 @@ var UI = (function () {
         var cat = _getDialogueCategory(npc);
         var lines = _NPC_DIALOGUE.hail[cat] || _NPC_DIALOGUE.hail['independent_trade'];
         _setDialogue(_formatDialogue(_pickRandom(lines), npc));
+        Ship.changeRelationship(npc.commander, 1);
     }
 
     function _npcHailHostile(npc) {
@@ -3478,8 +3488,10 @@ var UI = (function () {
             ship.fuel = Math.min(ship.fuel + amount, ship.maxFuel);
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.fuel_accept), npc));
             showToast('+' + amount + ' fuel from ' + npc.commander, 'success');
+            Ship.changeRelationship(npc.commander, 2);
         } else {
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.fuel_refuse), npc));
+            Ship.changeRelationship(npc.commander, -1);
         }
     }
 
@@ -3495,8 +3507,10 @@ var UI = (function () {
             }
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.supplies_accept), npc));
             showToast('+' + amount + ' ' + res + ' from ' + npc.commander, 'success');
+            Ship.changeRelationship(npc.commander, 2);
         } else {
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.supplies_refuse), npc));
+            Ship.changeRelationship(npc.commander, -1);
         }
     }
 
@@ -3504,12 +3518,14 @@ var UI = (function () {
         var fKey = _getFactionKey(npc);
         var lines = _NPC_DIALOGUE.intel[fKey] || _NPC_DIALOGUE.intel['independent'];
         _setDialogue(_formatDialogue(_pickRandom(lines), npc));
+        Ship.changeRelationship(npc.commander, 1);
     }
 
     function _npcWarOpinion(npc) {
         var fKey = _getFactionKey(npc);
         var lines = _NPC_DIALOGUE.war_opinion[fKey] || _NPC_DIALOGUE.war_opinion['independent'];
         _setDialogue(_formatDialogue(_pickRandom(lines), npc));
+        Ship.changeRelationship(npc.commander, 1);
     }
 
     function _npcProposeAlliance(npc) {
@@ -3520,16 +3536,18 @@ var UI = (function () {
         }
         if (Math.random() < 0.4) {
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.alliance_accept), npc));
-            // Add to fleet temporarily (or mark as allied)
             npc.allied = true;
-            npc.allyTimer = 300; // 5 minutes at 1tick/sec
+            npc.allyTimer = 300;
             showToast(npc.commander + ' joins your fleet temporarily!', 'success');
+            Ship.changeRelationship(npc.commander, 5);
         } else {
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.alliance_refuse), npc));
+            Ship.changeRelationship(npc.commander, -2);
         }
     }
 
     function _npcDemandSurrender(npc) {
+        Ship.changeRelationship(npc.commander, -10);
         var hpPct = npc.maxHp > 0 ? npc.hp / npc.maxHp : 1;
         if (hpPct < 0.3 && Math.random() < 0.6) {
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.surrender), npc));
@@ -3540,6 +3558,7 @@ var UI = (function () {
             _closeNpcPanel();
         } else {
             _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.surrender_refuse), npc));
+            Ship.changeRelationship(npc.commander, -5);
         }
     }
 
@@ -3558,9 +3577,11 @@ var UI = (function () {
 
     function _npcRumors(npc) {
         _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.trader_rumors), npc));
+        Ship.changeRelationship(npc.commander, 1);
     }
 
     function _npcAttack(npc) {
+        Ship.changeRelationship(npc.commander, -20);
         npc.hostile = true;
         if (typeof Factions !== 'undefined' && Factions.changeRep) {
             Factions.changeRep(npc.faction, -5);
@@ -3603,11 +3624,174 @@ var UI = (function () {
         });
     }
 
+    // ─── Tow System ─────────────────────────────────────────────────
+    var _TOW_DIALOGUE = {
+        accept: [
+            "Sure, I can tow you to {location}. Hop on.",
+            "Got room on my tow line. Let's go.",
+            "For {cost} credits? Deal. Hang tight.",
+            "Tow to {location}? No problem. Lock on.",
+            "Alright, hook up. Next stop: {location}."
+        ],
+        refuse: [
+            "Can't help you right now, too busy.",
+            "My schedule is packed. Ask someone else.",
+            "Towing? Do I look like a tugboat?",
+            "Not taking passengers today. Sorry.",
+            "I've got my own route to follow."
+        ],
+        arrive: "We've arrived at {location}. Safe travels, pilot."
+    };
+
+    function _npcRequestTow(npc) {
+        var locs = World.getLocations();
+        var ship = Ship.getShip();
+        if (!ship) return;
+        var rel = Ship.getRelationship(npc.commander);
+        var playerFaction = (typeof Factions !== 'undefined' && Factions.getPlayerFaction) ? Factions.getPlayerFaction() : 'independent';
+        var sameFaction = npc.faction === playerFaction;
+
+        // Build destination picker in dialogue area
+        var area = document.getElementById('npcDialogueArea');
+        if (!area) return;
+
+        var html = '<div style="font-size:12px;color:#ccc;margin-bottom:6px;">Choose a tow destination:</div>';
+        html += '<div style="max-height:180px;overflow-y:auto;">';
+        var destinations = [];
+        for (var i = 0; i < locs.length; i++) {
+            var loc = locs[i];
+            if (!loc.dockable) continue;
+            var dx = loc.x - ship.x, dy = loc.y - ship.y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < 100) continue; // already there
+
+            // Calculate cost
+            var baseCost = Math.floor(dist / 10);
+            var factionMod = sameFaction ? 0.8 : (_isNpcHostile(npc) ? 999 : (npc.faction !== playerFaction && npc.faction !== 'independent' ? 1.5 : 1.0));
+            var repMod = rel.rep > 50 ? 0.6 : rel.rep > 20 ? 0.8 : rel.rep > 0 ? 1.0 : rel.rep > -30 ? 1.3 : 1.6;
+            var cost = Math.max(1, Math.floor(baseCost * factionMod * repMod));
+
+            destinations.push({ loc: loc, dist: dist, cost: cost });
+        }
+
+        destinations.sort(function (a, b) { return a.dist - b.dist; });
+
+        for (var j = 0; j < destinations.length; j++) {
+            var d = destinations[j];
+            html += '<button class="tow-dest-btn" data-destid="' + d.loc.id + '" style="display:block;width:100%;margin:2px 0;padding:5px 8px;background:#2a2a3a;color:#ddd;border:1px solid #555;cursor:pointer;text-align:left;font-family:monospace;font-size:11px;">';
+            html += d.loc.name + ' <span style="color:#888;">(' + Math.round(d.dist) + ' units)</span>';
+            html += ' <span style="color:#ffcc44;">💰' + d.cost + '</span>';
+            html += '</button>';
+        }
+
+        if (destinations.length === 0) {
+            html += '<div style="color:#888;">No viable destinations found.</div>';
+        }
+
+        html += '</div>';
+        area.innerHTML = html;
+
+        // Attach click handlers
+        var btns = area.querySelectorAll('.tow-dest-btn');
+        for (var k = 0; k < btns.length; k++) {
+            (function (btn) {
+                btn.addEventListener('click', function () {
+                    var destId = btn.getAttribute('data-destid');
+                    _attemptTow(npc, destId);
+                });
+            })(btns[k]);
+        }
+    }
+
+    function _attemptTow(npc, destId) {
+        var ship = Ship.getShip();
+        if (!ship) return;
+        var loc = World.getLocation(destId);
+        if (!loc) return;
+
+        var rel = Ship.getRelationship(npc.commander);
+        var playerFaction = (typeof Factions !== 'undefined' && Factions.getPlayerFaction) ? Factions.getPlayerFaction() : 'independent';
+        var sameFaction = npc.faction === playerFaction;
+
+        // Calculate cost
+        var dx = loc.x - ship.x, dy = loc.y - ship.y;
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        var baseCost = Math.floor(dist / 10);
+        var factionMod = sameFaction ? 0.8 : (npc.faction !== playerFaction && npc.faction !== 'independent' ? 1.5 : 1.0);
+        var repMod = rel.rep > 50 ? 0.6 : rel.rep > 20 ? 0.8 : rel.rep > 0 ? 1.0 : rel.rep > -30 ? 1.3 : 1.6;
+        var cost = Math.max(1, Math.floor(baseCost * factionMod * repMod));
+
+        // Check credits
+        if (Economy.getCredits() < cost) {
+            _setDialogue("You don't have enough credits. Need " + cost + " credits.");
+            return;
+        }
+
+        // Calculate acceptance chance
+        var chance = 50;
+        if (rel.rep > 20) chance += 20;
+        if (sameFaction) chance += 10;
+        if (rel.rep < -10) chance -= 20;
+        if (npc.behavior === 'battle' || npc.behavior === 'patrol') chance -= 30;
+        if (npc.behavior === 'trade') chance += 20;
+        chance = Math.max(10, Math.min(90, chance));
+
+        if (Math.random() * 100 < chance) {
+            // Accepted
+            Economy.spendCredits(cost);
+            Ship.changeRelationship(npc.commander, 3);
+            Ship.startTow(npc.id, destId, loc.name);
+            npc.towTarget = { x: loc.x, y: loc.y, destId: destId };
+            var line = _pickRandom(_TOW_DIALOGUE.accept)
+                .replace(/\{location\}/g, loc.name)
+                .replace(/\{cost\}/g, cost);
+            _setDialogue(line);
+            showToast('Tow to ' + loc.name + ' started! (-' + cost + ' credits)', 'success');
+            setTimeout(_closeNpcPanel, 1500);
+        } else {
+            // Refused
+            Ship.changeRelationship(npc.commander, -1);
+            _setDialogue(_pickRandom(_TOW_DIALOGUE.refuse));
+        }
+    }
+
     // Wire NPC interaction events
     function _wireNpcEvents() {
         Events.on('npc_selected', _showNpcPanel);
         Events.on('npc_attack_request', _showAttackConfirm);
         Events.on('location_selected', _showLocationPanel);
+
+        // Tow arrival event
+        Events.on('tow_arrived', function (data) {
+            var towState = Ship.getTowState();
+            if (towState) {
+                // Find NPC to get commander name
+                var npcs = World.getNPCs();
+                for (var i = 0; i < npcs.length; i++) {
+                    if (npcs[i].id === data.npcId) {
+                        Ship.changeRelationship(npcs[i].commander, 5);
+                        break;
+                    }
+                }
+                var dest = World.getLocation(data.destId);
+                if (dest) {
+                    var s = Ship.getShip();
+                    s.x = dest.x;
+                    s.y = dest.y;
+                    Ship.dock(data.destId);
+                    showToast(_TOW_DIALOGUE.arrive.replace(/\{location\}/g, dest.name), 'success');
+                }
+                Ship.endTow();
+            }
+        });
+
+        Events.on('tow_broken', function (data) {
+            showToast('⚠ Tow broken — ' + (data.reason || 'NPC lost') + '!', 'warning');
+        });
+
+        Events.on('tow_cancelled', function () {
+            showToast('Tow cancelled. No refund.', 'info');
+        });
     }
 
     // ─── Location Info Panel ─────────────────────────────────────────
@@ -3824,15 +4008,34 @@ var UI = (function () {
         }
     }
 
+    function _updateTowUI() {
+        var towStatus = document.getElementById('towStatus');
+        var towState = Ship.getTowState ? Ship.getTowState() : null;
+        if (towState && towState.active) {
+            if (!towStatus) {
+                towStatus = document.createElement('div');
+                towStatus.id = 'towStatus';
+                towStatus.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(40,80,120,0.9);color:#fff;padding:8px 20px;font-family:monospace;font-size:14px;border:2px solid #4488ff;border-radius:4px;text-align:center;';
+                document.body.appendChild(towStatus);
+            }
+            // Calculate distance remaining
+            var dest = World.getLocation(towState.destId);
+            var ship = Ship.getShip();
+            var distRemaining = '';
+            if (dest && ship) {
+                var dx = dest.x - ship.x, dy = dest.y - ship.y;
+                distRemaining = ' — ' + Math.round(Math.sqrt(dx * dx + dy * dy)) + ' units remaining';
+            }
+            towStatus.textContent = '\uD83D\uDD17 Being towed to ' + towState.destName + distRemaining + ' — Press ESC to cancel';
+            towStatus.style.display = 'block';
+        } else {
+            if (towStatus) {
+                towStatus.style.display = 'none';
+            }
+        }
+    }
+
     return {
-        init: init,
-        wireEvents: wireEvents,
-        handleInput: handleInput,
-        closePanel: closePanel,
-        isPanelOpen: isPanelOpen,
-        showToast: showToast,
-        openSub: openSub,
-        closeStory: closeStory,
         // Expose action handlers for onclick
         _buy: _buy,
         _sell: _sell,
