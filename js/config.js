@@ -19,7 +19,7 @@ var Config = (function () {
     var AUTOSAVE_INTERVAL = 60000; // ms
     var UI_UPDATE_TICKS = 5;
     var NPC_RESPAWN_INTERVAL = 300; // ticks between respawn checks
-    var NPC_MAX_PATROLS = 5;       // per faction
+    var NPC_MAX_PATROLS = 50;      // per faction
 
     // ── Calendar ────────────────────────────────────────────
     // 1 day = 6 seconds real = 60 ticks. 1 year = 365 days = 21900 ticks (~36.5 min)
@@ -29,7 +29,7 @@ var Config = (function () {
         DAYS_PER_MONTH: [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31],
         MONTH_NAMES: ['January','February','March','April','May','June','July','August','September','October','November','December']
     };
-    var NPC_MAX_TRADERS = 6;
+    var NPC_MAX_TRADERS = 60;
 
     // ── Physics ──────────────────────────────────────────────
     var BASE_SPEED = 2.5;        // pixels per tick at speed 1

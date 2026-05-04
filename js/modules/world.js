@@ -102,22 +102,34 @@ var World = (function () {
         var mars = getLocation('mars');
         var ex = earth ? earth.x : 7500, ey = earth ? earth.y : 7500;
         var mx = mars ? mars.x : 7500, my = mars ? mars.y : 7500;
-        // Earth patrol ships — near Earth
-        for (var i = 0; i < 5; i++) {
+        // Earth patrol ships — near Earth (spread in 800px radius)
+        for (var i = 0; i < 50; i++) {
+            var ea = Math.random() * Math.PI * 2, er = Math.random() * 800;
             _spawnNPC('earth_patrol_' + i, Config.FACTION.EARTH, 'patrol',
-                ex - 300 + Math.random() * 600, ey - 300 + Math.random() * 600);
+                ex + Math.cos(ea) * er, ey + Math.sin(ea) * er);
         }
         // Mars patrol ships — near Mars
-        for (var j = 0; j < 5; j++) {
+        for (var j = 0; j < 50; j++) {
+            var ma = Math.random() * Math.PI * 2, mr = Math.random() * 800;
             _spawnNPC('mars_patrol_' + j, Config.FACTION.MARS, 'patrol',
-                mx - 300 + Math.random() * 600, my - 300 + Math.random() * 600);
+                mx + Math.cos(ma) * mr, my + Math.sin(ma) * mr);
         }
-        // Traders — scattered between Earth and Mars
-        for (var k = 0; k < 6; k++) {
+        // Independent traders — scattered between Earth and Mars
+        for (var k = 0; k < 60; k++) {
             var t = Math.random();
             _spawnNPC('trader_' + k, Config.FACTION.INDEPENDENT, 'trade',
-                ex + (mx - ex) * t + (Math.random() - 0.5) * 1000,
-                ey + (my - ey) * t + (Math.random() - 0.5) * 1000);
+                ex + (mx - ex) * t + (Math.random() - 0.5) * 2000,
+                ey + (my - ey) * t + (Math.random() - 0.5) * 2000);
+        }
+        // Earth faction traders
+        for (var et = 0; et < 20; et++) {
+            _spawnNPC('earth_trader_' + et, Config.FACTION.EARTH, 'trade',
+                ex + (Math.random() - 0.5) * 1200, ey + (Math.random() - 0.5) * 1200);
+        }
+        // Mars faction traders
+        for (var mt = 0; mt < 20; mt++) {
+            _spawnNPC('mars_trader_' + mt, Config.FACTION.MARS, 'trade',
+                mx + (Math.random() - 0.5) * 1200, my + (Math.random() - 0.5) * 1200);
         }
     }
 
@@ -473,12 +485,12 @@ var World = (function () {
                 ey + (my - ey) * t + (Math.random() - 0.5) * 1000);
         }
         // Earth faction traders
-        if (earthTraders < 2) {
+        if (earthTraders < 20) {
             _spawnNPC('earth_trader_r' + (_nextId++), Config.FACTION.EARTH, 'trade',
                 ex + (Math.random() - 0.5) * 600, ey + (Math.random() - 0.5) * 600);
         }
         // Mars faction traders
-        if (marsTraders < 2) {
+        if (marsTraders < 20) {
             _spawnNPC('mars_trader_r' + (_nextId++), Config.FACTION.MARS, 'trade',
                 mx + (Math.random() - 0.5) * 600, my + (Math.random() - 0.5) * 600);
         }
