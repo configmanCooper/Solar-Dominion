@@ -4508,6 +4508,11 @@ var UI = (function () {
     }
 
     return {
+        // Core lifecycle
+        init: init,
+        wireEvents: wireEvents,
+        handleInput: handleInput,
+        showToast: showToast,
         // Expose action handlers for onclick
         _buy: _buy,
         _sell: _sell,
