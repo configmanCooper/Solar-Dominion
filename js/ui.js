@@ -109,6 +109,25 @@ var UI = (function () {
             var fName = (Factions.getFaction(data.faction) || {}).name || data.faction;
             showToast('⚙️ ' + fName + ' built: ' + data.shipName, 'info');
         });
+
+        // Mining events
+        Events.on('mining_started', function () {
+            showToast('⛏ Mining started — press [R] to stop', 'info');
+        });
+        Events.on('mining_stopped', function () {
+            showToast('⛏ Mining stopped', 'info');
+        });
+        Events.on('mining_error', function (data) {
+            showToast('⛏ ' + data.reason, 'warning');
+        });
+        Events.on('resource_mined', function (data) {
+            var rDef = Config.RESOURCES[data.resource];
+            var name = rDef ? rDef.name : data.resource;
+            showToast((rDef ? rDef.icon : '') + ' +' + data.amount + ' ' + name, 'success');
+        });
+        Events.on('asteroid_depleted', function () {
+            showToast('⛏ Asteroid depleted!', 'info');
+        });
     }
 
     function handleInput() {
@@ -144,6 +163,21 @@ var UI = (function () {
         if (Input.justPressed('PAUSE')) Engine.togglePause();
         if (Input.justPressed('SPEED_UP')) Engine.setGameSpeed(Engine.getGameSpeed() + 0.5);
         if (Input.justPressed('SPEED_DOWN')) Engine.setGameSpeed(Engine.getGameSpeed() - 0.5);
+
+        // Mining toggle
+        if (Input.justPressed('MINE')) {
+            if (Mining.isMining()) {
+                Mining.stopMining();
+            } else {
+                var ship = Ship.getShip();
+                if (!ship.docked) {
+                    var nearAst = Mining.getNearbyAsteroid(ship.x, ship.y);
+                    if (nearAst) {
+                        Mining.startMining(nearAst.id);
+                    }
+                }
+            }
+        }
     }
 
     // ── Panel management ─────────────────────────────────────

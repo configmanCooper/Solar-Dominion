@@ -617,6 +617,19 @@ var World = (function () {
         addPlayerStation: addPlayerStation,
         addProjectile: addProjectile,
         addExplosion: addExplosion,
+        spawnNPC: function (opts) {
+            var npc = _spawnNPC(
+                opts.label + '_' + (_nextId++),
+                opts.faction,
+                opts.behavior || 'patrol',
+                opts.x, opts.y
+            );
+            // Apply optional overrides
+            if (opts.hp) { npc.hp = opts.hp; npc.maxHp = opts.hp; }
+            if (opts.patrolRadius) npc.patrolRadius = opts.patrolRadius;
+            if (opts.hostile) npc.hostile = true;
+            return npc;
+        },
         serialize: serialize,
         deserialize: deserialize
     };

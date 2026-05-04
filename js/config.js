@@ -229,7 +229,11 @@ var Config = (function () {
         fuel_tank:      { code: 'ft', name: 'Fuel Tank',        cat: BLOCK_CAT.UTILITY,    weight: 6,   hp: 15,  powerDraw: 0,  powerGen: 0,  cost: 400,   color: '#aa8844', placement: 'any', fuelCapacity: 180, materials: { metal: 2, construction_mats: 2 } },
         sensor_array:   { code: 'sa', name: 'Sensor Array',     cat: BLOCK_CAT.UTILITY,    weight: 3,   hp: 12,  powerDraw: 2,  powerGen: 0,  cost: 1000,  color: '#44ffaa', placement: 'edge', scanRange: 500, materials: { electronics: 4, data_cores: 1 } },
         repair_bay:     { code: 'rb', name: 'Repair Bay',       cat: BLOCK_CAT.UTILITY,    weight: 8,   hp: 25,  powerDraw: 3,  powerGen: 0,  cost: 2000,  color: '#44cc88', placement: 'any', repairRate: 0.5, materials: { refined_metals: 3, electronics: 2, medical_supplies: 1 } },
-        diplo_suite:    { code: 'ds', name: 'Diplomatic Suite',  cat: BLOCK_CAT.UTILITY,   weight: 6,   hp: 20,  powerDraw: 2,  powerGen: 0,  cost: 4000,  color: '#ccaa44', placement: 'any', diploBonus: 0.25, materials: { luxury_goods: 2, electronics: 2, cultural_artifacts: 1 } }
+        diplo_suite:    { code: 'ds', name: 'Diplomatic Suite',  cat: BLOCK_CAT.UTILITY,   weight: 6,   hp: 20,  powerDraw: 2,  powerGen: 0,  cost: 4000,  color: '#ccaa44', placement: 'any', diploBonus: 0.25, materials: { luxury_goods: 2, electronics: 2, cultural_artifacts: 1 } },
+        // Mining equipment
+        mining_laser_1: { code: 'm1', name: 'Basic Mining Laser',    cat: BLOCK_CAT.UTILITY,   weight: 5,   hp: 18,  powerDraw: 3,  powerGen: 0,  cost: 600,   color: '#ddaa33', placement: 'edge', miningSpeed: 1.0, miningYield: 1.0, materials: { metal: 3, electronics: 1 } },
+        mining_laser_2: { code: 'm2', name: 'Adv Mining Laser',     cat: BLOCK_CAT.UTILITY,   weight: 7,   hp: 22,  powerDraw: 5,  powerGen: 0,  cost: 2500,  color: '#eebb44', placement: 'edge', miningSpeed: 1.8, miningYield: 1.4, materials: { refined_metals: 3, electronics: 3, rare_minerals: 1 } },
+        mining_laser_3: { code: 'm3', name: 'Plasma Mining Drill',  cat: BLOCK_CAT.UTILITY,   weight: 10,  hp: 28,  powerDraw: 8,  powerGen: 0,  cost: 7000,  color: '#ffcc55', placement: 'edge', miningSpeed: 3.0, miningYield: 2.0, materials: { advanced_components: 4, rare_minerals: 3, electronics: 4 } }
     };
 
     // Reverse lookup: code → block type key
@@ -728,6 +732,57 @@ var Config = (function () {
         refueling:    { name: 'Refueling Depot',  income: 300,  influence: 3,  buildTime: 80,  cost: { credits: 40000, metal: 300, electronics: 150 } }
     };
 
+    // ── Mining ───────────────────────────────────────────────
+    var MINING = {
+        ACTIVATION_RANGE: 80,           // max distance to mine an asteroid
+        PROGRESS_PER_TICK: 0.01,        // base progress per tick (multiplied by miningSpeed)
+        FUEL_PER_TICK: 0.05,            // chemical_propellant consumed per mining tick
+        ASTEROID_COUNT_CERES: 25,       // minable rocks in Ceres Belt
+        ASTEROID_COUNT_VESTA: 15,       // minable rocks in Vesta Field
+        ASTEROID_MIN_RESOURCES: 5,      // min total resources per asteroid
+        ASTEROID_MAX_RESOURCES: 30,     // max total resources per asteroid
+        RESPAWN_TICKS: 6000,            // ~10 minutes to respawn a depleted asteroid
+        NPC_MINER_COUNT: 4,             // total NPC miners across all fields
+        NPC_MINE_SPEED: 0.005,          // NPC progress per tick
+        NPC_CARGO_CAPACITY: 30,
+        NPC_DELIVER_INTERVAL: 200,      // ticks between NPC delivery attempts
+        PIRATE_SPAWN_CHANCE: 0.002,     // per tick while player is in asteroid field
+        RESOURCE_WEIGHTS: {
+            // Probability weights for resource types in asteroids
+            metal: 40,
+            rare_minerals: 20,
+            water: 15,
+            refined_metals: 10,         // naturally occurring refined veins
+            chemical_propellant: 10,    // trapped gases
+            xenon_gas: 5
+        }
+    };
+
+    // Asteroid field definitions — which field has what characteristics
+    var ASTEROID_FIELDS = {
+        asteroid_belt_1: {
+            name: 'Ceres Belt',
+            asteroidCount: 25,
+            richness: 1.2,              // multiplier on resource amounts
+            dangerLevel: 0.3,           // pirate spawn chance multiplier
+            resourceOverrides: {        // boost/reduce specific resources
+                rare_minerals: 1.5,
+                metal: 1.3
+            }
+        },
+        asteroid_belt_2: {
+            name: 'Vesta Field',
+            asteroidCount: 15,
+            richness: 0.9,
+            dangerLevel: 0.5,
+            resourceOverrides: {
+                xenon_gas: 2.0,
+                water: 1.5,
+                chemical_propellant: 1.3
+            }
+        }
+    };
+
     // ── Stars (background decoration) ────────────────────────
     var STAR_COUNT = 1200;
     var NEBULA_COUNT = 6;
@@ -777,7 +832,8 @@ var Config = (function () {
         ESCAPE: ['Escape'],
         SPEED_UP: ['Period'],
         SPEED_DOWN: ['Comma'],
-        WEAPON_SWITCH: ['Tab']
+        WEAPON_SWITCH: ['Tab'],
+        MINE: ['KeyR']
     };
 
     return {
@@ -802,6 +858,7 @@ var Config = (function () {
         LOCATION_ECONOMY: LOCATION_ECONOMY, LOCATION_EVENTS: LOCATION_EVENTS, FACTION_STRATEGIES: FACTION_STRATEGIES,
         DIPLOMACY: DIPLOMACY, COMBAT: COMBAT, FLEET: FLEET,
         MISSION_TYPES: MISSION_TYPES, STATION_TYPES: STATION_TYPES,
+        MINING: MINING, ASTEROID_FIELDS: ASTEROID_FIELDS,
         STAR_COUNT: STAR_COUNT, NEBULA_COUNT: NEBULA_COUNT,
         SAVE_VERSION: SAVE_VERSION, SAVE_KEY_PREFIX: SAVE_KEY_PREFIX,
         MAX_SAVE_SLOTS: MAX_SAVE_SLOTS,

@@ -63,6 +63,9 @@ var Render = (function () {
         _drawNebulae();
         _drawGrid();
         _drawLocations();
+        _drawMinableAsteroids();
+        _drawNPCMiners();
+        _drawMiningLaser();
         _drawNPCs();
         _drawFleetShips();
         _drawProjectiles();
@@ -567,6 +570,189 @@ var Render = (function () {
         _ctx.fillText('⛏ ' + loc.name, loc.x, loc.y + loc.radius + 12);
     }
 
+    function _drawMinableAsteroids() {
+        var asteroids = Mining.getAsteroids();
+        var zoom = Input.getZoom();
+        var viewW = Config.VIEWPORT_W / zoom;
+        var viewH = Config.VIEWPORT_H / zoom;
+        var ship = Ship.getShip();
+
+        for (var i = 0; i < asteroids.length; i++) {
+            var ast = asteroids[i];
+            // Frustum cull
+            if (ast.x < _camX - 20 || ast.x > _camX + viewW + 20 ||
+                ast.y < _camY - 20 || ast.y > _camY + viewH + 20) continue;
+
+            if (ast.depleted) {
+                // Draw faint ghost
+                _ctx.globalAlpha = 0.15;
+                _ctx.beginPath();
+                _ctx.arc(ast.x, ast.y, ast.radius * 0.6, 0, Math.PI * 2);
+                _ctx.fillStyle = '#444';
+                _ctx.fill();
+                _ctx.globalAlpha = 1.0;
+                continue;
+            }
+
+            // Resource richness affects color
+            var remaining = 0, maxRes = ast.maxResources || 1;
+            for (var k in ast.resources) remaining += ast.resources[k];
+            var richPct = remaining / maxRes;
+
+            // Draw rock with color based on remaining resources
+            var baseR = 0x66 + Math.floor(ast.colorSeed * 0x33);
+            var baseG = 0x55 + Math.floor(ast.colorSeed * 0x22);
+            var baseB = 0x33 + Math.floor(ast.colorSeed * 0x22);
+            // Brighten based on richness
+            var bright = 0.5 + richPct * 0.5;
+            var colR = Math.min(255, Math.floor(baseR * bright));
+            var colG = Math.min(255, Math.floor(baseG * bright));
+            var colB = Math.min(255, Math.floor(baseB * bright));
+            _ctx.fillStyle = 'rgb(' + colR + ',' + colG + ',' + colB + ')';
+
+            // Irregular shape
+            _ctx.beginPath();
+            var pts = 6 + Math.floor(ast.colorSeed * 4);
+            for (var p = 0; p < pts; p++) {
+                var a = (p / pts) * Math.PI * 2;
+                var r2 = ast.radius * (0.7 + ((ast.colorSeed * 7 + p * 13) % 10) / 30);
+                var px = ast.x + Math.cos(a) * r2;
+                var py = ast.y + Math.sin(a) * r2;
+                if (p === 0) _ctx.moveTo(px, py);
+                else _ctx.lineTo(px, py);
+            }
+            _ctx.closePath();
+            _ctx.fill();
+
+            // Sparkle for rare minerals
+            if (ast.resources.rare_minerals && ast.resources.rare_minerals > 3) {
+                _ctx.fillStyle = 'rgba(200,180,255,0.6)';
+                var sx = ast.x + (ast.colorSeed - 0.5) * ast.radius;
+                var sy = ast.y + (ast.colorSeed * 2 - 1) * ast.radius * 0.5;
+                _ctx.fillRect(sx - 1, sy - 1, 2, 2);
+            }
+
+            // Hover highlight and info — show when player is close
+            var dx = ast.x - ship.x, dy = ast.y - ship.y;
+            var dist = Math.sqrt(dx * dx + dy * dy);
+            if (dist < Config.MINING.ACTIVATION_RANGE * 1.5) {
+                // Highlight ring
+                _ctx.strokeStyle = 'rgba(255,204,50,0.4)';
+                _ctx.lineWidth = 1;
+                _ctx.beginPath();
+                _ctx.arc(ast.x, ast.y, ast.radius + 3, 0, Math.PI * 2);
+                _ctx.stroke();
+
+                // Resource label
+                var resText = '';
+                for (var rk in ast.resources) {
+                    var rDef = Config.RESOURCES[rk];
+                    resText += (rDef ? rDef.icon : '?') + ast.resources[rk] + ' ';
+                }
+                _ctx.fillStyle = '#ddcc88';
+                _ctx.font = '9px monospace';
+                _ctx.textAlign = 'center';
+                _ctx.fillText(resText.trim(), ast.x, ast.y - ast.radius - 6);
+
+                // Mining prompt if in range
+                if (dist < Config.MINING.ACTIVATION_RANGE && !Mining.isMining()) {
+                    _ctx.fillStyle = '#ffcc33';
+                    _ctx.font = '10px monospace';
+                    _ctx.fillText('[R] Mine', ast.x, ast.y + ast.radius + 12);
+                }
+            }
+        }
+    }
+
+    function _drawNPCMiners() {
+        var miners = Mining.getNPCMiners();
+        var zoom = Input.getZoom();
+        var viewW = Config.VIEWPORT_W / zoom;
+        var viewH = Config.VIEWPORT_H / zoom;
+
+        for (var i = 0; i < miners.length; i++) {
+            var m = miners[i];
+            if (m.dead) continue;
+            if (m.x < _camX - 20 || m.x > _camX + viewW + 20 ||
+                m.y < _camY - 20 || m.y > _camY + viewH + 20) continue;
+
+            var color = _getFactionColor(m.faction);
+
+            _ctx.save();
+            _ctx.translate(m.x, m.y);
+            _ctx.rotate(m.angle - Math.PI / 2);
+
+            // Mining ship shape (wider, stubbier)
+            _ctx.beginPath();
+            _ctx.moveTo(8, 0);
+            _ctx.lineTo(0, -8);
+            _ctx.lineTo(-8, -4);
+            _ctx.lineTo(-8, 4);
+            _ctx.lineTo(0, 8);
+            _ctx.closePath();
+            _ctx.fillStyle = color;
+            _ctx.fill();
+
+            _ctx.restore();
+
+            // Mining beam when mining
+            if (m.state === 'mining' && m.targetAsteroid) {
+                var tAst = null;
+                var allAst = Mining.getAsteroids();
+                for (var a = 0; a < allAst.length; a++) {
+                    if (allAst[a].id === m.targetAsteroid) { tAst = allAst[a]; break; }
+                }
+                if (tAst) {
+                    _ctx.strokeStyle = 'rgba(255,200,50,0.4)';
+                    _ctx.lineWidth = 1;
+                    _ctx.beginPath();
+                    _ctx.moveTo(m.x, m.y);
+                    _ctx.lineTo(tAst.x, tAst.y);
+                    _ctx.stroke();
+                }
+            }
+
+            // Label
+            _ctx.fillStyle = '#999';
+            _ctx.font = '8px monospace';
+            _ctx.textAlign = 'center';
+            _ctx.fillText('⛏', m.x, m.y - 12);
+        }
+    }
+
+    function _drawMiningLaser() {
+        if (!Mining.isMining()) return;
+        var state = Mining.getMiningState();
+        if (!state) return;
+
+        var ship = Ship.getShip();
+        var asteroids = Mining.getAsteroids();
+        var targetAst = null;
+        for (var i = 0; i < asteroids.length; i++) {
+            if (asteroids[i].id === state.asteroidId) { targetAst = asteroids[i]; break; }
+        }
+        if (!targetAst) return;
+
+        // Animated beam
+        var pulseAlpha = 0.4 + Math.sin(Date.now() * 0.01) * 0.2;
+        _ctx.save();
+        _ctx.strokeStyle = 'rgba(255,204,50,' + pulseAlpha + ')';
+        _ctx.lineWidth = 2 + Math.sin(Date.now() * 0.015) * 1;
+        _ctx.beginPath();
+        _ctx.moveTo(ship.x, ship.y);
+        _ctx.lineTo(targetAst.x, targetAst.y);
+        _ctx.stroke();
+
+        // Sparkles at asteroid
+        for (var s = 0; s < 3; s++) {
+            var sx = targetAst.x + (Math.random() - 0.5) * targetAst.radius * 2;
+            var sy = targetAst.y + (Math.random() - 0.5) * targetAst.radius * 2;
+            _ctx.fillStyle = 'rgba(255,220,100,' + (0.3 + Math.random() * 0.5) + ')';
+            _ctx.fillRect(sx, sy, 2, 2);
+        }
+        _ctx.restore();
+    }
+
     // Draw a block grid as a ship silhouette at given scale
     function _drawBlockGrid(grid, scale) {
         if (!grid || !grid.cells) return;
@@ -691,7 +877,7 @@ var Render = (function () {
                 npc.y < _camY - 30 || npc.y > _camY + viewH + 30) continue;
 
             var color = _getFactionColor(npc.faction);
-            if (Factions.isHostile(npc.faction)) color = Config.COLORS.enemy;
+            if (Factions.isHostile(npc.faction) || npc.hostile) color = Config.COLORS.enemy;
 
             _ctx.save();
             _ctx.translate(npc.x, npc.y);
@@ -938,6 +1124,37 @@ var Render = (function () {
             var dockedLoc = World.getLocation(ship.dockedAt);
             var dockedName = dockedLoc ? dockedLoc.name : (ship.dockedAt || '???');
             _ctx.fillText('⚓ DOCKED at ' + dockedName, Config.VIEWPORT_W / 2, pad + 14);
+        }
+
+        // Mining progress HUD
+        if (Mining.isMining()) {
+            var mState = Mining.getMiningState();
+            if (mState) {
+                var miningY = Config.VIEWPORT_H - 80;
+                _ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                _ctx.fillRect(Config.VIEWPORT_W / 2 - 120, miningY - 5, 240, 55);
+
+                _ctx.fillStyle = '#ffcc33';
+                _ctx.font = 'bold 12px monospace';
+                _ctx.textAlign = 'center';
+                _ctx.fillText('⛏ MINING', Config.VIEWPORT_W / 2, miningY + 10);
+
+                // Progress bar
+                _drawBar(Config.VIEWPORT_W / 2 - 100, miningY + 16, 200, 12,
+                    mState.progress, 1.0, '#ddaa33', '');
+
+                // Extracted this cycle
+                var exText = '';
+                for (var ek in mState.extractedThisCycle) {
+                    var eDef = Config.RESOURCES[ek];
+                    exText += (eDef ? eDef.icon : '') + mState.extractedThisCycle[ek] + ' ';
+                }
+                if (exText) {
+                    _ctx.fillStyle = '#aaddaa';
+                    _ctx.font = '10px monospace';
+                    _ctx.fillText(exText.trim(), Config.VIEWPORT_W / 2, miningY + 44);
+                }
+            }
         }
 
         // Paused overlay

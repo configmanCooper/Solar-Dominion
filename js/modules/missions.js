@@ -233,7 +233,10 @@ var Missions = (function () {
             case 'spy': return [{ type: 'go_to', target: dest ? dest.id : null, done: false }, { type: 'return', done: false }];
             case 'sabotage': return [{ type: 'go_to', target: dest ? dest.id : null, done: false }];
             case 'diplomatic': return [{ type: 'go_to', target: dest ? dest.id : null, done: false }];
-            case 'mining': return [{ type: 'collect', resource: 'metal', amount: 20 + Math.floor(Math.random() * 30), collected: 0, done: false }];
+            case 'mining':
+                var mineRes = ['metal', 'rare_minerals', 'water', 'refined_metals'];
+                var pickedRes = mineRes[Math.floor(Math.random() * mineRes.length)];
+                return [{ type: 'collect', resource: pickedRes, amount: 10 + Math.floor(Math.random() * 25), collected: 0, done: false }];
             default: return [];
         }
     }

@@ -67,7 +67,7 @@ var Combat = (function () {
             var n = npcs[k];
             if (n.dead || !n.weapon) continue;
 
-            var hostile = Factions.isHostile(n.faction);
+            var hostile = Factions.isHostile(n.faction) || n.hostile;
             if (!hostile) continue;
 
             var ddx = ship.x - n.x, ddy = ship.y - n.y;

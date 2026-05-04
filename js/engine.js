@@ -38,6 +38,7 @@ var Engine = (function () {
         Diplomacy.init();
         Stations.init();
         Story.init();
+        Mining.init();
 
         // Wire up cross-module events
         Events.on('npc_destroyed', function (data) {
@@ -88,6 +89,9 @@ var Engine = (function () {
 
         // 7. Missions
         Missions.tick();
+
+        // 7b. Mining
+        Mining.tick();
 
         // 8. Diplomacy (every 10 ticks)
         if (_tickCount % 10 === 0) {
@@ -143,7 +147,8 @@ var Engine = (function () {
             fleet: Fleet.serialize(),
             missions: Missions.serialize(),
             diplomacy: Diplomacy.serialize(),
-            story: Story.serialize()
+            story: Story.serialize(),
+            mining: Mining.serialize()
         };
     }
 
@@ -163,6 +168,7 @@ var Engine = (function () {
         Missions.deserialize(data.missions);
         Diplomacy.deserialize(data.diplomacy);
         Story.deserialize(data.story);
+        Mining.deserialize(data.mining);
     }
 
     function getDate() {
