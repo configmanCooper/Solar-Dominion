@@ -92,8 +92,11 @@ var Combat = (function () {
             var n = npcs[k];
             if (n.dead || !n.weapon) continue;
 
-            var hostile = Factions.isHostile(n.faction) || n.hostile;
-            if (!hostile) continue;
+            // Per-NPC hostility (player attacked this specific ship)
+            var perNpcHostile = n.hostile;
+            // Faction-wide hostility — only patrol and battle ships actively hunt player
+            var factionHostile = Factions.isHostile(n.faction) && (n.behavior === 'patrol' || n.behavior === 'battle');
+            if (!perNpcHostile && !factionHostile) continue;
 
             var ddx = ship.x - n.x, ddy = ship.y - n.y;
             var dist = Math.sqrt(ddx * ddx + ddy * ddy);
@@ -127,20 +130,25 @@ var Combat = (function () {
                     _npcFire(n);
                 }
 
-                // Call for reinforcements — alert nearby same-faction ships
+                // Call for reinforcements — only 1 nearby ally, and only battle/patrol ships
+                // Most ships are busy and won't respond
                 if (!n._calledForHelp) {
                     n._calledForHelp = true;
-                    for (var aid = 0; aid < npcs.length; aid++) {
+                    var helpFound = false;
+                    for (var aid = 0; aid < npcs.length && !helpFound; aid++) {
                         var ally = npcs[aid];
                         if (ally.dead || ally === n || ally.faction !== n.faction) continue;
-                        if (ally.hostile || ally.behavior === 'trade' || ally.behavior === 'mining') continue;
+                        if (ally.hostile || ally._calledForHelp) continue;
+                        // Only battle and patrol ships respond to distress calls
+                        if (ally.behavior !== 'patrol' && ally.behavior !== 'battle') continue;
                         var allyDx = n.x - ally.x, allyDy = n.y - ally.y;
                         var allyDist = Math.sqrt(allyDx * allyDx + allyDy * allyDy);
-                        if (allyDist < Config.COMBAT.AGGRO_RANGE * 2) {
-                            // Nearby ally joins the fight
-                            ally.hostile = true;
-                            ally._calledForHelp = true;
-                        }
+                        if (allyDist > Config.COMBAT.AGGRO_RANGE * 1.5) continue;
+                        // 30% chance any given nearby ship actually responds
+                        if (Math.random() > 0.30) continue;
+                        ally.hostile = true;
+                        ally._calledForHelp = true;
+                        helpFound = true;
                     }
                 }
             }
@@ -214,8 +222,9 @@ var Combat = (function () {
             if (a.behavior !== 'patrol' && a.behavior !== 'battle') continue;
 
             // Skip if already targeting the player (player takes priority)
-            var hostile = Factions.isHostile(a.faction) || a.hostile;
-            if (hostile) {
+            var perHostile = a.hostile;
+            var facHostile = Factions.isHostile(a.faction) && (a.behavior === 'patrol' || a.behavior === 'battle');
+            if (perHostile || facHostile) {
                 var ship = Ship.getShip();
                 var pd = Math.sqrt((ship.x - a.x) * (ship.x - a.x) + (ship.y - a.y) * (ship.y - a.y));
                 if (pd < ((a.behavior === 'battle') ? (Config.COMBAT.BATTLE_AGGRO_RANGE || 1200) : Config.COMBAT.AGGRO_RANGE)) continue; // already fighting player
