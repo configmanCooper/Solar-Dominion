@@ -473,7 +473,7 @@ var World = (function () {
                     npc.y += Math.sin(npc.angle) * npc.speed;
                 }
                 if (npc.shieldHp < npc.maxShieldHp) {
-                    npc.shieldHp = Math.min(npc.maxShieldHp, npc.shieldHp + 0.1);
+                    npc.shieldHp = Math.min(npc.maxShieldHp, npc.shieldHp + 0.02);
                 }
                 return;
             } else {
@@ -500,7 +500,7 @@ var World = (function () {
             }
             // Shield regen
             if (npc.shieldHp < npc.maxShieldHp) {
-                npc.shieldHp = Math.min(npc.maxShieldHp, npc.shieldHp + 0.1);
+                npc.shieldHp = Math.min(npc.maxShieldHp, npc.shieldHp + 0.02);
             }
             return;
         }

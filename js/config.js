@@ -185,17 +185,17 @@ var Config = (function () {
     };
 
     var WEAPON_TYPES = {
-        laser:    { name: 'Laser Cannon',  damage: 8,  range: 250, fireRate: 10, type: 'energy',   cost: 2000,  electronics: 50 },
-        missile:  { name: 'Missile Rack',  damage: 30, range: 400, fireRate: 30, type: 'explosive', cost: 3000,  metal: 100 },
-        railgun:  { name: 'Railgun',       damage: 40, range: 350, fireRate: 30, type: 'kinetic',  cost: 12000, metal: 200, electronics: 150 },
-        torpedo:  { name: 'Torpedo Bay',   damage: 60, range: 500, fireRate: 45, type: 'explosive', cost: 18000, metal: 300, electronics: 200 }
+        laser:    { name: 'Laser Cannon',  damage: 25,  range: 250, fireRate: 10, type: 'energy',   cost: 2000,  electronics: 50 },
+        missile:  { name: 'Missile Rack',  damage: 55, range: 400, fireRate: 30, type: 'explosive', cost: 3000,  metal: 100 },
+        railgun:  { name: 'Railgun',       damage: 70, range: 350, fireRate: 30, type: 'kinetic',  cost: 12000, metal: 200, electronics: 150 },
+        torpedo:  { name: 'Torpedo Bay',   damage: 100, range: 500, fireRate: 45, type: 'explosive', cost: 18000, metal: 300, electronics: 200 }
     };
 
     var SHIELD_TYPES = {
-        none:     { name: 'No Shield',      shieldHP: 0,   regenRate: 0,   resist: {}, cost: 0 },
-        energy:   { name: 'Energy Shield',  shieldHP: 50,  regenRate: 0.5, resist: { energy: 0.3 }, cost: 3000, electronics: 80 },
-        magnetic: { name: 'Magnetic Shield', shieldHP: 80,  regenRate: 0.3, resist: { kinetic: 0.4 }, cost: 8000, electronics: 150 },
-        ablative: { name: 'Ablative Armor', shieldHP: 120, regenRate: 0.1, resist: { explosive: 0.5 }, cost: 12000, metal: 200 }
+        none:     { name: 'No Shield',      shieldHP: 0,   regenRate: 0,    resist: {}, cost: 0 },
+        energy:   { name: 'Energy Shield',  shieldHP: 50,  regenRate: 0.08, resist: { energy: 0.3 }, cost: 3000, electronics: 80 },
+        magnetic: { name: 'Magnetic Shield', shieldHP: 80,  regenRate: 0.05, resist: { kinetic: 0.4 }, cost: 8000, electronics: 150 },
+        ablative: { name: 'Ablative Armor', shieldHP: 120, regenRate: 0.02, resist: { explosive: 0.5 }, cost: 12000, metal: 200 }
     };
 
     var SPECIAL_MODULES = {
@@ -223,13 +223,13 @@ var Config = (function () {
         engine_plasma:  { code: 'ep', name: 'Plasma Drive',     cat: BLOCK_CAT.PROPULSION,  weight: 10,  hp: 22,  powerDraw: 8,  powerGen: 0,  cost: 5000,  color: '#cc44ff', placement: 'aft', thrust: 30, fuelType: 'plasma_cells', fuelRate: 0.27, speedBoost: 1.0, materials: { advanced_components: 4, rare_minerals: 2, electronics: 3 } },
         engine_fusion:  { code: 'ef', name: 'Fusion Drive',     cat: BLOCK_CAT.PROPULSION,  weight: 14,  hp: 30,  powerDraw: 12, powerGen: 0,  cost: 12000, color: '#ff44aa', placement: 'aft', thrust: 50, fuelType: 'fusion_cores', fuelRate: 0.13, speedBoost: 1.5, materials: { advanced_components: 6, rare_minerals: 4, data_cores: 1 } },
         // Weapons (edge placement = top/side rows)
-        weapon_laser:   { code: 'wl', name: 'Laser Cannon',    cat: BLOCK_CAT.WEAPON,      weight: 4,   hp: 20,  powerDraw: 3,  powerGen: 0,  cost: 800,   color: '#ff4444', placement: 'edge', damage: 8,  range: 250, fireRate: 10, dmgType: 'energy', materials: { electronics: 2, refined_metals: 1 } },
-        weapon_missile: { code: 'wm', name: 'Missile Rack',    cat: BLOCK_CAT.WEAPON,      weight: 8,   hp: 15,  powerDraw: 2,  powerGen: 0,  cost: 1200,  color: '#ff6644', placement: 'edge', damage: 30, range: 400, fireRate: 30, dmgType: 'explosive', materials: { weapons_components: 2, metal: 2 } },
-        weapon_railgun: { code: 'wr', name: 'Railgun',         cat: BLOCK_CAT.WEAPON,      weight: 12,  hp: 25,  powerDraw: 6,  powerGen: 0,  cost: 4000,  color: '#ffaa22', placement: 'edge', damage: 40, range: 350, fireRate: 30, dmgType: 'kinetic', materials: { weapons_components: 5, advanced_components: 2, rare_minerals: 1 } },
-        weapon_torpedo: { code: 'wt', name: 'Torpedo Bay',     cat: BLOCK_CAT.WEAPON,      weight: 15,  hp: 20,  powerDraw: 4,  powerGen: 0,  cost: 6000,  color: '#ff2222', placement: 'edge', damage: 60, range: 500, fireRate: 45, dmgType: 'explosive', materials: { weapons_components: 6, advanced_components: 3, data_cores: 1 } },
+        weapon_laser:   { code: 'wl', name: 'Laser Cannon',    cat: BLOCK_CAT.WEAPON,      weight: 4,   hp: 20,  powerDraw: 3,  powerGen: 0,  cost: 800,   color: '#ff4444', placement: 'edge', damage: 25,  range: 250, fireRate: 10, dmgType: 'energy', materials: { electronics: 2, refined_metals: 1 } },
+        weapon_missile: { code: 'wm', name: 'Missile Rack',    cat: BLOCK_CAT.WEAPON,      weight: 8,   hp: 15,  powerDraw: 2,  powerGen: 0,  cost: 1200,  color: '#ff6644', placement: 'edge', damage: 55, range: 400, fireRate: 30, dmgType: 'explosive', materials: { weapons_components: 2, metal: 2 } },
+        weapon_railgun: { code: 'wr', name: 'Railgun',         cat: BLOCK_CAT.WEAPON,      weight: 12,  hp: 25,  powerDraw: 6,  powerGen: 0,  cost: 4000,  color: '#ffaa22', placement: 'edge', damage: 70, range: 350, fireRate: 30, dmgType: 'kinetic', materials: { weapons_components: 5, advanced_components: 2, rare_minerals: 1 } },
+        weapon_torpedo: { code: 'wt', name: 'Torpedo Bay',     cat: BLOCK_CAT.WEAPON,      weight: 15,  hp: 20,  powerDraw: 4,  powerGen: 0,  cost: 6000,  color: '#ff2222', placement: 'edge', damage: 100, range: 500, fireRate: 45, dmgType: 'explosive', materials: { weapons_components: 6, advanced_components: 3, data_cores: 1 } },
         // Defense
-        shield_basic:   { code: 'sb', name: 'Shield Generator', cat: BLOCK_CAT.DEFENSE,    weight: 6,   hp: 25,  powerDraw: 5,  powerGen: 0,  cost: 1500,  color: '#4466ff', placement: 'any', shieldHP: 50, regenRate: 0.5, materials: { electronics: 2, refined_metals: 2 } },
-        shield_heavy:   { code: 'sh', name: 'Heavy Shield',     cat: BLOCK_CAT.DEFENSE,    weight: 12,  hp: 35,  powerDraw: 10, powerGen: 0,  cost: 5000,  color: '#2244cc', placement: 'any', shieldHP: 120, regenRate: 0.3, materials: { shield_components: 6, advanced_components: 2, rare_minerals: 1 } },
+        shield_basic:   { code: 'sb', name: 'Shield Generator', cat: BLOCK_CAT.DEFENSE,    weight: 6,   hp: 25,  powerDraw: 5,  powerGen: 0,  cost: 1500,  color: '#4466ff', placement: 'any', shieldHP: 50, regenRate: 0.08, materials: { electronics: 2, refined_metals: 2 } },
+        shield_heavy:   { code: 'sh', name: 'Heavy Shield',     cat: BLOCK_CAT.DEFENSE,    weight: 12,  hp: 35,  powerDraw: 10, powerGen: 0,  cost: 5000,  color: '#2244cc', placement: 'any', shieldHP: 120, regenRate: 0.05, materials: { shield_components: 6, advanced_components: 2, rare_minerals: 1 } },
         // Power generation
         power_solar:    { code: 'ps', name: 'Solar Panel',      cat: BLOCK_CAT.POWER,      weight: 2,   hp: 10,  powerDraw: 0,  powerGen: 5,  cost: 200,   color: '#88ccff', placement: 'edge', materials: { electronics: 2 } },
         power_fusion_gen:{ code: 'pf', name: 'Fusion Generator', cat: BLOCK_CAT.POWER,     weight: 14,  hp: 30,  powerDraw: 0,  powerGen: 40, cost: 8000,  color: '#ffee44', placement: 'any', fuelType: 'fusion_cores', fuelRate: 0.1, materials: { advanced_components: 5, rare_minerals: 3, electronics: 3 } },

@@ -87,7 +87,7 @@ var Combat = (function () {
             }
         }
 
-        // NPC combat AI — hostile NPCs attack player
+        // NPC combat AI — hostile NPCs attack player with smart maneuvering
         for (var k = 0; k < npcs.length; k++) {
             var n = npcs[k];
             if (n.dead || !n.weapon) continue;
@@ -99,14 +99,68 @@ var Combat = (function () {
             var dist = Math.sqrt(ddx * ddx + ddy * ddy);
 
             if (dist < Config.COMBAT.AGGRO_RANGE) {
+                // Smart maneuvering: orbit at weapon range instead of ramming
+                var wData = n.weaponDef || Config.WEAPON_TYPES[n.weapon] || Config.BLOCK_TYPES[n.weapon];
+                var preferredRange = (wData && wData.range) ? wData.range * 0.7 : 180;
+
+                if (dist < preferredRange * 0.5) {
+                    // Too close — back off at an angle
+                    var retreatAngle = Math.atan2(-ddy, -ddx) + (Math.random() - 0.5) * 1.2;
+                    n.destX = n.x + Math.cos(retreatAngle) * preferredRange;
+                    n.destY = n.y + Math.sin(retreatAngle) * preferredRange;
+                } else if (dist > preferredRange * 1.3) {
+                    // Too far — approach
+                    n.destX = ship.x;
+                    n.destY = ship.y;
+                } else {
+                    // Good range — strafe/orbit around player
+                    var orbitAngle = Math.atan2(ddy, ddx) + (Math.PI / 2) * (n.id.charCodeAt(0) % 2 === 0 ? 1 : -1);
+                    n.destX = ship.x + Math.cos(orbitAngle) * preferredRange;
+                    n.destY = ship.y + Math.sin(orbitAngle) * preferredRange;
+                }
+
+                // Face the player to fire
                 n.angle = Math.atan2(ddy, ddx);
-                n.destX = ship.x;
-                n.destY = ship.y;
 
                 n.fireTimer = (n.fireTimer || 0) - 1;
                 if (n.fireTimer <= 0) {
                     _npcFire(n);
                 }
+
+                // Call for reinforcements — alert nearby same-faction ships
+                if (!n._calledForHelp) {
+                    n._calledForHelp = true;
+                    for (var aid = 0; aid < npcs.length; aid++) {
+                        var ally = npcs[aid];
+                        if (ally.dead || ally === n || ally.faction !== n.faction) continue;
+                        if (ally.hostile || ally.behavior === 'trade' || ally.behavior === 'mining') continue;
+                        var allyDx = n.x - ally.x, allyDy = n.y - ally.y;
+                        var allyDist = Math.sqrt(allyDx * allyDx + allyDy * allyDy);
+                        if (allyDist < Config.COMBAT.AGGRO_RANGE * 2) {
+                            // Nearby ally joins the fight
+                            ally.hostile = true;
+                            ally._calledForHelp = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Ship collision damage — NPCs ramming player
+        for (var ci = 0; ci < npcs.length; ci++) {
+            var cn = npcs[ci];
+            if (cn.dead) continue;
+            var collDx = ship.x - cn.x, collDy = ship.y - cn.y;
+            var collDist = Math.sqrt(collDx * collDx + collDy * collDy);
+            if (collDist < 18) {
+                // Collision! Damage both ships
+                var collisionDmg = 8 + Math.random() * 7;
+                Ship.takeDamage(collisionDmg, 'kinetic');
+                _damageNPC(cn, collisionDmg, 'kinetic', true);
+                // Push apart
+                var pushAngle = Math.atan2(collDy, collDx);
+                cn.x -= Math.cos(pushAngle) * 10;
+                cn.y -= Math.sin(pushAngle) * 10;
             }
         }
 
@@ -136,7 +190,7 @@ var Combat = (function () {
     function _npcFire(npc) {
         var wData = npc.weaponDef || Config.WEAPON_TYPES[npc.weapon] || Config.BLOCK_TYPES[npc.weapon];
         if (!wData) return;
-        var dmg = wData.damage * 0.6;
+        var dmg = wData.damage * 0.8;
         var wType = wData.dmgType || wData.type || 'energy';
         var wRange = wData.range || 250;
         World.addProjectile({
