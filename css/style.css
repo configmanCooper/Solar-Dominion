@@ -960,3 +960,163 @@ body {
     gap: 10px;
     justify-content: center;
 }
+
+/* ── Location Info Panel ─────────────────────────────── */
+#locationInfoPanel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(8, 12, 30, 0.96);
+    border: 1px solid #335577;
+    border-radius: 8px;
+    padding: 18px;
+    min-width: 340px;
+    max-width: 440px;
+    z-index: 1500;
+    color: #ddd;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 0 40px rgba(0, 80, 200, 0.25);
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.loc-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #335577;
+}
+
+.loc-panel-name {
+    font-size: 16px;
+    font-weight: bold;
+    text-shadow: 0 0 10px currentColor;
+}
+
+.loc-panel-type {
+    font-size: 11px;
+    color: #99aabb;
+    margin-left: 12px;
+}
+
+.loc-panel-close {
+    background: none;
+    border: 1px solid #445566;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.15s;
+}
+.loc-panel-close:hover {
+    color: #ff4444;
+    border-color: #ff4444;
+}
+
+.loc-panel-desc {
+    font-size: 11px;
+    color: #99aabb;
+    margin-bottom: 12px;
+    line-height: 1.4;
+    font-style: italic;
+}
+
+.loc-panel-stats {
+    margin-bottom: 10px;
+    border-bottom: 1px solid #223344;
+    padding-bottom: 8px;
+}
+
+.loc-stat {
+    font-size: 11px;
+    margin-bottom: 3px;
+}
+
+.loc-stat-label {
+    color: #6688aa;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+}
+
+.loc-panel-influence {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #223344;
+}
+
+.loc-inf-bar {
+    height: 16px;
+    background: #1a1a2e;
+    border-radius: 3px;
+    margin: 3px 0;
+    overflow: hidden;
+}
+
+.loc-inf-earth {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #2244aa, #4488ff);
+    font-size: 9px;
+    line-height: 16px;
+    padding-left: 4px;
+    color: #fff;
+    border-radius: 3px;
+}
+
+.loc-inf-mars {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #aa3322, #dd4422);
+    font-size: 9px;
+    line-height: 16px;
+    padding-left: 4px;
+    color: #fff;
+    border-radius: 3px;
+}
+
+.loc-panel-economy {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #223344;
+}
+
+.loc-stock-item {
+    font-size: 10px;
+    color: #aabbcc;
+    margin: 2px 0;
+}
+.loc-stock-item span {
+    color: #44ddaa;
+    font-weight: bold;
+}
+
+.loc-panel-military {
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #223344;
+}
+
+.loc-ship-count {
+    font-size: 10px;
+    display: inline-block;
+    margin: 2px 6px 2px 0;
+    color: #bbccdd;
+}
+
+.loc-panel-dist {
+    font-size: 10px;
+    color: #77aacc;
+    margin-top: 6px;
+}
+
+.loc-panel-orbit {
+    font-size: 10px;
+    color: #667788;
+    margin-top: 4px;
+}

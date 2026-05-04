@@ -3569,6 +3569,169 @@ var UI = (function () {
     function _wireNpcEvents() {
         Events.on('npc_selected', _showNpcPanel);
         Events.on('npc_attack_request', _showAttackConfirm);
+        Events.on('location_selected', _showLocationPanel);
+    }
+
+    // ─── Location Info Panel ─────────────────────────────────────────
+    var _locationPanel = null;
+
+    function _showLocationPanel(data) {
+        var loc = data.location;
+        // Close NPC panel if open
+        var npcPanel = document.getElementById('npcInteractPanel');
+        if (npcPanel) npcPanel.remove();
+        // Close existing location panel
+        _closeLocationPanel();
+
+        var panel = document.createElement('div');
+        panel.id = 'locationInfoPanel';
+        _locationPanel = panel;
+
+        // Faction info
+        var factionData = loc.faction ? Factions.getFaction(loc.faction) : null;
+        var factionName = factionData ? factionData.name : (loc.faction || 'Unclaimed');
+        var factionColor = _getLocFactionColor(loc.faction);
+
+        // Header
+        var header = '<div class="loc-panel-header">' +
+            '<span class="loc-panel-name" style="color:' + (loc.color || '#fff') + '">' + (loc.name || loc.id) + '</span>' +
+            '<span class="loc-panel-type">' + _formatLocType(loc.type) + '</span>' +
+            '<button class="loc-panel-close" onclick="UI._closeLocationPanel()">✕</button>' +
+            '</div>';
+
+        // Description
+        var desc = '<div class="loc-panel-desc">' + (loc.description || '') + '</div>';
+
+        // Stats section
+        var stats = '<div class="loc-panel-stats">';
+        stats += '<div class="loc-stat"><span class="loc-stat-label">Faction:</span> <span style="color:' + factionColor + '">' + factionName + '</span></div>';
+        stats += '<div class="loc-stat"><span class="loc-stat-label">Radius:</span> ' + (loc.radius || '?') + ' km</div>';
+        if (loc.dockable) {
+            stats += '<div class="loc-stat"><span class="loc-stat-label">Dockable:</span> <span style="color:#44ff88">Yes</span></div>';
+        } else {
+            stats += '<div class="loc-stat"><span class="loc-stat-label">Dockable:</span> <span style="color:#aa6666">No</span></div>';
+        }
+        if (loc.services && loc.services.length > 0) {
+            stats += '<div class="loc-stat"><span class="loc-stat-label">Services:</span> ' + loc.services.map(function(s) { return _formatService(s); }).join(', ') + '</div>';
+        }
+        stats += '</div>';
+
+        // Influence (for neutral/contested locations)
+        var influenceHtml = '';
+        if (loc.influence) {
+            influenceHtml = '<div class="loc-panel-influence">';
+            influenceHtml += '<div class="loc-stat-label">Influence:</div>';
+            influenceHtml += '<div class="loc-inf-bar"><span class="loc-inf-earth" style="width:' + Math.min(100, loc.influence.earth) + '%">' + (loc.influence.earth > 5 ? 'Earth ' + Math.round(loc.influence.earth) + '%' : '') + '</span></div>';
+            influenceHtml += '<div class="loc-inf-bar"><span class="loc-inf-mars" style="width:' + Math.min(100, loc.influence.mars) + '%">' + (loc.influence.mars > 5 ? 'Mars ' + Math.round(loc.influence.mars) + '%' : '') + '</span></div>';
+            influenceHtml += '</div>';
+        }
+
+        // Economy (show top resources in stock if dockable)
+        var economyHtml = '';
+        if (loc.dockable && Economy) {
+            var locStocks = Economy.getLocationStocks ? Economy.getLocationStocks(loc.id) : null;
+            if (locStocks) {
+                economyHtml = '<div class="loc-panel-economy">';
+                economyHtml += '<div class="loc-stat-label">Market Stocks:</div>';
+                var stockEntries = [];
+                for (var res in locStocks) {
+                    if (locStocks[res] > 0) {
+                        var rDef = Config.RESOURCES[res];
+                        var rName = rDef ? rDef.name : res;
+                        var rIcon = rDef ? (rDef.icon || '') : '';
+                        stockEntries.push({ name: rName, icon: rIcon, amount: Math.floor(locStocks[res]) });
+                    }
+                }
+                stockEntries.sort(function(a, b) { return b.amount - a.amount; });
+                var shown = stockEntries.slice(0, 8);
+                for (var si = 0; si < shown.length; si++) {
+                    economyHtml += '<div class="loc-stock-item">' + shown[si].icon + ' ' + shown[si].name + ': <span>' + shown[si].amount + '</span></div>';
+                }
+                if (stockEntries.length > 8) {
+                    economyHtml += '<div class="loc-stock-item" style="color:#666">...and ' + (stockEntries.length - 8) + ' more</div>';
+                }
+                economyHtml += '</div>';
+            }
+        }
+
+        // Military presence
+        var militaryHtml = '';
+        var npcs = World.getNPCs();
+        var nearbyShips = { patrol: 0, battle: 0, diplomacy: 0, trade: 0, research: 0, mining: 0 };
+        var countRadius = (loc.radius || 50) * 8;
+        for (var ni = 0; ni < npcs.length; ni++) {
+            var n = npcs[ni];
+            if (n.dead) continue;
+            var ndx = n.x - loc.x, ndy = n.y - loc.y;
+            if (Math.sqrt(ndx * ndx + ndy * ndy) < countRadius) {
+                if (nearbyShips[n.behavior] !== undefined) nearbyShips[n.behavior]++;
+            }
+        }
+        var totalNearby = nearbyShips.patrol + nearbyShips.battle + nearbyShips.diplomacy + nearbyShips.trade + nearbyShips.research + nearbyShips.mining;
+        if (totalNearby > 0) {
+            militaryHtml = '<div class="loc-panel-military">';
+            militaryHtml += '<div class="loc-stat-label">Nearby Ships (' + totalNearby + '):</div>';
+            if (nearbyShips.patrol > 0) militaryHtml += '<span class="loc-ship-count">🛡️ Patrol: ' + nearbyShips.patrol + '</span> ';
+            if (nearbyShips.battle > 0) militaryHtml += '<span class="loc-ship-count">⚔️ Battle: ' + nearbyShips.battle + '</span> ';
+            if (nearbyShips.trade > 0) militaryHtml += '<span class="loc-ship-count">📦 Trade: ' + nearbyShips.trade + '</span> ';
+            if (nearbyShips.diplomacy > 0) militaryHtml += '<span class="loc-ship-count">🤝 Diplo: ' + nearbyShips.diplomacy + '</span> ';
+            if (nearbyShips.research > 0) militaryHtml += '<span class="loc-ship-count">🔬 Research: ' + nearbyShips.research + '</span> ';
+            if (nearbyShips.mining > 0) militaryHtml += '<span class="loc-ship-count">⛏️ Mining: ' + nearbyShips.mining + '</span> ';
+            militaryHtml += '</div>';
+        }
+
+        // Distance from player
+        var ship = Ship.getShip();
+        var distHtml = '';
+        if (ship) {
+            var ddx = loc.x - ship.x, ddy = loc.y - ship.y;
+            var dist = Math.sqrt(ddx * ddx + ddy * ddy);
+            distHtml = '<div class="loc-panel-dist">Distance: ' + Math.round(dist) + ' units</div>';
+        }
+
+        // Orbit info
+        var orbitHtml = '';
+        if (loc.orbit) {
+            var parentLoc = World.getLocation(loc.orbit.parent);
+            var parentName = parentLoc ? parentLoc.name : loc.orbit.parent;
+            orbitHtml = '<div class="loc-panel-orbit">Orbiting: ' + parentName + ' (radius ' + loc.orbit.radius + ')</div>';
+        }
+
+        panel.innerHTML = header + desc + stats + influenceHtml + economyHtml + militaryHtml + distHtml + orbitHtml;
+        document.body.appendChild(panel);
+
+        // Close on Escape
+        var _locEscHandler = function(ev) {
+            if (ev.key === 'Escape') { _closeLocationPanel(); document.removeEventListener('keydown', _locEscHandler); }
+        };
+        document.addEventListener('keydown', _locEscHandler);
+    }
+
+    function _closeLocationPanel() {
+        if (_locationPanel) { _locationPanel.remove(); _locationPanel = null; }
+        var existing = document.getElementById('locationInfoPanel');
+        if (existing) existing.remove();
+    }
+
+    function _getLocFactionColor(faction) {
+        if (faction === Config.FACTION.EARTH) return '#4488ff';
+        if (faction === Config.FACTION.MARS) return '#dd4422';
+        if (faction === Config.FACTION.MOON) return '#cccccc';
+        if (faction === Config.FACTION.MARS_STATION) return '#ffaa33';
+        return '#88cc88';
+    }
+
+    function _formatLocType(type) {
+        if (type === Config.LOC_TYPE.STAR) return '⭐ Star';
+        if (type === Config.LOC_TYPE.PLANET) return '🪐 Planet';
+        if (type === Config.LOC_TYPE.MOON) return '🌙 Moon';
+        if (type === Config.LOC_TYPE.STATION) return '🛰️ Station';
+        return type || 'Unknown';
+    }
+
+    function _formatService(s) {
+        var map = { trade: '💰 Trade', missions: '📋 Missions', shipyard: '🔧 Shipyard', upgrade: '⬆️ Upgrade', fuel: '⛽ Fuel', mining: '⛏️ Mining' };
+        return map[s] || s;
     }
 
     return {
@@ -3618,6 +3781,8 @@ var UI = (function () {
         _godCredits: _godCredits,
         _godHeal: _godHeal,
         _godInvincible: _godInvincible,
-        _godRep: _godRep
+        _godRep: _godRep,
+        // Location panel
+        _closeLocationPanel: _closeLocationPanel
     };
 })();

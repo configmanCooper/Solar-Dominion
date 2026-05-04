@@ -120,6 +120,18 @@ var Render = (function () {
 
         var clickRadius = 20 / zoom;
 
+        // Check locations (planets/stations) — use their radius for click detection
+        var locations = World.getLocations();
+        for (var li = 0; li < locations.length; li++) {
+            var loc = locations[li];
+            var ldx = loc.x - worldX, ldy = loc.y - worldY;
+            var locClickR = Math.max((loc.radius || 30) * 1.2, 25);
+            if (Math.sqrt(ldx * ldx + ldy * ldy) < locClickR) {
+                Events.emit('location_selected', { location: loc, screenX: cx, screenY: cy });
+                return;
+            }
+        }
+
         // Check NPCs
         var npcs = World.getNPCs();
         for (var i = 0; i < npcs.length; i++) {
