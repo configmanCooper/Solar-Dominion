@@ -706,8 +706,9 @@ var Config = (function () {
 
     // ── Combat ───────────────────────────────────────────────
     var COMBAT = {
-        AGGRO_RANGE: 400,
-        DISENGAGE_RANGE: 600,
+        AGGRO_RANGE: 800,
+        DISENGAGE_RANGE: 1200,
+        BATTLE_AGGRO_RANGE: 1200,
         PROJECTILE_SPEED: 8,
         EXPLOSION_DURATION: 20,
         LOOT_CHANCE: 0.4,

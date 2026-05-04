@@ -14,6 +14,13 @@ var Factions = (function () {
     var BUILD_CHECK_INTERVAL = 300;   // check build AI every ~30 seconds
     var _buildCheckTimer = 0;
 
+    // Fleet attack missions
+    var _fleetAttacks = [];
+    var _fleetAttackTimer = 0;
+    var FLEET_ATTACK_INTERVAL = 3000; // ~5 min between fleet attack checks
+    var FLEET_ATTACK_MIN_SHIPS = 5;
+    var _fleetAttackIdCounter = 0;
+
     // Ship classes factions can build — cost materials from home location stocks
     var FACTION_SHIP_CLASSES = {
         patrol_corvette: {
@@ -776,6 +783,183 @@ var Factions = (function () {
         return f.politics;
     }
 
+    // ── Fleet Attack Missions ────────────────────────────────
+    function _tickFleetAttacks() {
+        _fleetAttackTimer++;
+        if (_fleetAttackTimer < FLEET_ATTACK_INTERVAL) return;
+        _fleetAttackTimer = 0;
+
+        var factionIds = [Config.FACTION.EARTH, Config.FACTION.MARS];
+        for (var fi = 0; fi < factionIds.length; fi++) {
+            var fid = factionIds[fi];
+            var faction = _factions[fid];
+            if (!faction || !faction.atWar) continue;
+
+            // Chance scales with warHawk
+            var chance = (faction.warHawk || 30) / 200;
+            if (Math.random() > chance) continue;
+
+            // Pick a target
+            var enemyId = (fid === Config.FACTION.EARTH) ? 'mars' : 'earth';
+            var enemyLoc = World.getLocation(enemyId);
+            if (!enemyLoc) continue;
+
+            var targetX = enemyLoc.x;
+            var targetY = enemyLoc.y;
+            var targetName = enemyLoc.name || enemyId;
+
+            // Sometimes target a contested station instead
+            var locs = World.getLocations ? World.getLocations() : [];
+            var contested = [];
+            for (var li = 0; li < locs.length; li++) {
+                var loc = locs[li];
+                if (loc.influence && loc.dockable) {
+                    var myInf = (fid === Config.FACTION.EARTH) ? loc.influence.earth : loc.influence.mars;
+                    var enemyInf = (fid === Config.FACTION.EARTH) ? loc.influence.mars : loc.influence.earth;
+                    if (enemyInf > 30 && myInf < 70) {
+                        contested.push(loc);
+                    }
+                }
+            }
+            if (contested.length > 0 && Math.random() < 0.4) {
+                var cTarget = contested[Math.floor(Math.random() * contested.length)];
+                targetX = cTarget.x;
+                targetY = cTarget.y;
+                targetName = cTarget.name || 'contested station';
+            }
+
+            // Gather eligible ships
+            var npcs = World.getNPCs();
+            var eligible = [];
+            for (var ni = 0; ni < npcs.length; ni++) {
+                var npc = npcs[ni];
+                if (npc.dead || npc.fleetMission) continue;
+                if (npc.faction !== fid) continue;
+                if (npc.behavior !== 'battle' && npc.behavior !== 'patrol') continue;
+                eligible.push(npc);
+            }
+
+            if (eligible.length < FLEET_ATTACK_MIN_SHIPS) continue;
+
+            // Pick 5-12 ships
+            var fleetSize = Math.min(eligible.length, 5 + Math.floor(Math.random() * 8));
+            // Prefer battle ships
+            eligible.sort(function (a, b) {
+                return (b.behavior === 'battle' ? 1 : 0) - (a.behavior === 'battle' ? 1 : 0);
+            });
+
+            var attackId = 'fleet_' + fid + '_' + (++_fleetAttackIdCounter);
+            var shipIds = [];
+            for (var si = 0; si < fleetSize; si++) {
+                eligible[si].fleetMission = attackId;
+                shipIds.push(eligible[si].id);
+            }
+
+            var missionObj = {
+                id: attackId,
+                faction: fid,
+                targetX: targetX,
+                targetY: targetY,
+                targetName: targetName,
+                shipIds: shipIds,
+                launched: _fleetAttackTimer,
+                attackTimer: 0,
+                attackDuration: 300 + Math.floor(Math.random() * 300),
+                state: 'assembling'
+            };
+            _fleetAttacks.push(missionObj);
+
+            var fName = faction.name || fid;
+            Events.emit('fleet_attack_launched', {
+                faction: fid,
+                factionName: fName,
+                targetName: targetName,
+                shipCount: fleetSize
+            });
+        }
+    }
+
+    function _tickFleetMissions() {
+        var npcs = World.getNPCs();
+        for (var mi = _fleetAttacks.length - 1; mi >= 0; mi--) {
+            var mission = _fleetAttacks[mi];
+
+            // Count surviving ships
+            var alive = 0;
+            var arrived = 0;
+            for (var si = 0; si < mission.shipIds.length; si++) {
+                var found = false;
+                for (var ni = 0; ni < npcs.length; ni++) {
+                    if (npcs[ni].id === mission.shipIds[si] && !npcs[ni].dead) {
+                        found = true;
+                        var sdx = mission.targetX - npcs[ni].x;
+                        var sdy = mission.targetY - npcs[ni].y;
+                        if (Math.sqrt(sdx * sdx + sdy * sdy) < 500) {
+                            arrived++;
+                        }
+                        break;
+                    }
+                }
+                if (found) alive++;
+            }
+
+            // Check if fleet decimated (more than half killed)
+            if (alive <= Math.floor(mission.shipIds.length / 2)) {
+                _endFleetMission(mission, npcs, 'decimated');
+                _fleetAttacks.splice(mi, 1);
+                continue;
+            }
+
+            if (mission.state === 'assembling') {
+                // Transition to attacking when enough ships arrive
+                if (arrived >= Math.ceil(alive * 0.5)) {
+                    mission.state = 'attacking';
+                    mission.attackTimer = 0;
+                }
+            } else if (mission.state === 'attacking') {
+                mission.attackTimer++;
+                if (mission.attackTimer >= mission.attackDuration) {
+                    _endFleetMission(mission, npcs, 'completed');
+                    _fleetAttacks.splice(mi, 1);
+                    continue;
+                }
+            }
+        }
+    }
+
+    function _endFleetMission(mission, npcs, reason) {
+        // Clear fleet mission from all surviving ships
+        for (var si = 0; si < mission.shipIds.length; si++) {
+            for (var ni = 0; ni < npcs.length; ni++) {
+                if (npcs[ni].id === mission.shipIds[si]) {
+                    npcs[ni].fleetMission = null;
+                    break;
+                }
+            }
+        }
+
+        var faction = _factions[mission.faction];
+        var fName = faction ? faction.name : mission.faction;
+        var msg;
+        if (reason === 'decimated') {
+            msg = fName + ' fleet attack on ' + mission.targetName + ' was repelled!';
+        } else {
+            msg = fName + ' fleet completed assault on ' + mission.targetName + '.';
+        }
+        Events.emit('fleet_attack_result', { faction: mission.faction, message: msg, reason: reason });
+    }
+
+    function getFleetAttack(id) {
+        for (var i = 0; i < _fleetAttacks.length; i++) {
+            if (_fleetAttacks[i].id === id) return _fleetAttacks[i];
+        }
+        return null;
+    }
+
+    function getFleetAttacks() {
+        return _fleetAttacks;
+    }
+
     function tick() {
         // Earth tries to influence Moon, Mars tries to influence Ares Station
         var luna = World.getLocation('luna');
@@ -829,6 +1013,10 @@ var Factions = (function () {
 
         // Internal politics
         _tickPolitics();
+
+        // Fleet attack missions
+        _tickFleetAttacks();
+        _tickFleetMissions();
     }
 
     function serialize() {
@@ -837,7 +1025,10 @@ var Factions = (function () {
             playerRep: JSON.parse(JSON.stringify(_playerRep)),
             strategyEvalTimer: _strategyEvalTimer,
             buildTimers: JSON.parse(JSON.stringify(_buildTimers)),
-            buildCheckTimer: _buildCheckTimer
+            buildCheckTimer: _buildCheckTimer,
+            fleetAttacks: JSON.parse(JSON.stringify(_fleetAttacks)),
+            fleetAttackTimer: _fleetAttackTimer,
+            fleetAttackIdCounter: _fleetAttackIdCounter
         };
     }
 
@@ -847,6 +1038,10 @@ var Factions = (function () {
         if (data.playerRep) _playerRep = data.playerRep;
         _strategyEvalTimer = data.strategyEvalTimer || 0;
         _buildCheckTimer = data.buildCheckTimer || 0;
+        // Restore fleet attack state
+        _fleetAttacks = data.fleetAttacks || [];
+        _fleetAttackTimer = data.fleetAttackTimer || 0;
+        _fleetAttackIdCounter = data.fleetAttackIdCounter || 0;
         // Restore build timers
         if (data.buildTimers) {
             _buildTimers = data.buildTimers;
@@ -894,6 +1089,8 @@ var Factions = (function () {
         getStrategyMissionTypes: getStrategyMissionTypes,
         getPolitics: getPolitics,
         getBuildState: getBuildState,
+        getFleetAttack: getFleetAttack,
+        getFleetAttacks: getFleetAttacks,
         tick: tick,
         serialize: serialize,
         deserialize: deserialize

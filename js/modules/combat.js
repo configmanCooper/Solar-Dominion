@@ -164,11 +164,12 @@ var Combat = (function () {
             if (hostile) {
                 var ship = Ship.getShip();
                 var pd = Math.sqrt((ship.x - a.x) * (ship.x - a.x) + (ship.y - a.y) * (ship.y - a.y));
-                if (pd < Config.COMBAT.AGGRO_RANGE) continue; // already fighting player
+                if (pd < ((a.behavior === 'battle') ? (Config.COMBAT.BATTLE_AGGRO_RANGE || 1200) : Config.COMBAT.AGGRO_RANGE)) continue; // already fighting player
             }
 
             // Find nearest enemy faction NPC
-            var bestTarget = null, bestDist = Config.COMBAT.AGGRO_RANGE;
+            var aggroRange = (a.behavior === 'battle') ? (Config.COMBAT.BATTLE_AGGRO_RANGE || 1200) : Config.COMBAT.AGGRO_RANGE;
+            var bestTarget = null, bestDist = aggroRange;
             for (var j = 0; j < npcs.length; j++) {
                 if (i === j) continue;
                 var b = npcs[j];

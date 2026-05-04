@@ -162,6 +162,12 @@ var UI = (function () {
             var fName = (Factions.getFaction(data.faction) || {}).name || data.faction;
             showToast('🏛️ ' + fName + ': ' + data.name + ' crisis resolved', 'info');
         });
+        Events.on('fleet_attack_launched', function (e) {
+            showToast('⚔️ ' + e.factionName + ' launched fleet attack on ' + e.targetName + '!', 'combat');
+        });
+        Events.on('fleet_attack_result', function (e) {
+            showToast('⚔️ ' + e.message, 'combat');
+        });
 
         // Mining events
         Events.on('mining_started', function () {

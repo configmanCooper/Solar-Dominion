@@ -375,6 +375,31 @@ var World = (function () {
     }
 
     function _updateNPCAI(npc) {
+        // Fleet mission override — ships on fleet attack navigate to mission target
+        if (npc.fleetMission) {
+            var mission = Factions.getFleetAttack(npc.fleetMission);
+            if (mission && mission.state !== 'returning') {
+                npc.destX = mission.targetX + (Math.random() - 0.5) * 200;
+                npc.destY = mission.targetY + (Math.random() - 0.5) * 200;
+                npc.aiTimer = 20;
+                // Still move toward destination
+                var fmDx = npc.destX - npc.x;
+                var fmDy = npc.destY - npc.y;
+                var fmDist = Math.sqrt(fmDx * fmDx + fmDy * fmDy);
+                if (fmDist > 10) {
+                    npc.angle = Math.atan2(fmDy, fmDx);
+                    npc.x += Math.cos(npc.angle) * npc.speed;
+                    npc.y += Math.sin(npc.angle) * npc.speed;
+                }
+                if (npc.shieldHp < npc.maxShieldHp) {
+                    npc.shieldHp = Math.min(npc.maxShieldHp, npc.shieldHp + 0.1);
+                }
+                return;
+            } else {
+                npc.fleetMission = null;
+            }
+        }
+
         npc.aiTimer--;
         if (npc.aiTimer > 0) {
             // Move toward destination
@@ -409,17 +434,17 @@ var World = (function () {
         } else if (npc.behavior === 'battle') {
             // Offensive ships roam further, patrol between home and enemy territory
             _updatePatrolCenter(npc);
-            var roamFactor = 0.3 + Math.random() * 0.4; // wander 30-70% toward enemy
+            var roamFactor = 0.4 + Math.random() * 0.4; // wander 40-80% toward enemy
             var enemyLoc = npc.faction === Config.FACTION.EARTH ? getLocation('mars') : getLocation('earth');
-            if (enemyLoc && Math.random() < 0.4) {
-                // Sometimes push toward enemy territory
+            if (enemyLoc && Math.random() < 0.7) {
+                // Push toward enemy territory most of the time
                 npc.destX = npc.patrolCenter.x + (enemyLoc.x - npc.patrolCenter.x) * roamFactor + (Math.random() - 0.5) * 600;
                 npc.destY = npc.patrolCenter.y + (enemyLoc.y - npc.patrolCenter.y) * roamFactor + (Math.random() - 0.5) * 600;
             } else {
-                npc.destX = npc.patrolCenter.x + (Math.random() - 0.5) * npc.patrolRadius * 3;
-                npc.destY = npc.patrolCenter.y + (Math.random() - 0.5) * npc.patrolRadius * 3;
+                npc.destX = npc.patrolCenter.x + (Math.random() - 0.5) * npc.patrolRadius * 4;
+                npc.destY = npc.patrolCenter.y + (Math.random() - 0.5) * npc.patrolRadius * 4;
             }
-        } else if (npc.behavior === 'diplomacy') {
+        }else if (npc.behavior === 'diplomacy') {
             // Diplomacy ships travel between dockable locations, especially neutral ones
             var diploTargets = [];
             for (var dli = 0; dli < _locations.length; dli++) {
