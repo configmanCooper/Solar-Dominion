@@ -127,7 +127,7 @@ var Render = (function () {
             if (npc.dead) continue;
             var dx = npc.x - worldX, dy = npc.y - worldY;
             if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {
-                _shipInfoTarget = { type: 'npc', data: npc, screenX: cx, screenY: cy };
+                Events.emit('npc_selected', { npc: npc, screenX: cx, screenY: cy });
                 return;
             }
         }
@@ -156,6 +156,19 @@ var Render = (function () {
         var zoom = Input.getZoom();
         var worldX = _camX + cx / zoom;
         var worldY = _camY + cy / zoom;
+
+        // Check if right-clicking an NPC
+        var npcs = World.getNPCs();
+        var clickRadius = 20 / zoom;
+        for (var i = 0; i < npcs.length; i++) {
+            var npc = npcs[i];
+            if (npc.dead) continue;
+            var dx = npc.x - worldX, dy = npc.y - worldY;
+            if (Math.sqrt(dx * dx + dy * dy) < clickRadius) {
+                Events.emit('npc_attack_request', { npc: npc });
+                return;
+            }
+        }
 
         var ship = Ship.getShip();
         if (ship && !ship.docked) {
@@ -1620,10 +1633,15 @@ var Render = (function () {
 
     function _drawShipInfo() {
         if (!_shipInfoTarget) return;
+        // Only draw canvas tooltip for fleet ships; NPCs use DOM panel
+        if (_shipInfoTarget.type !== 'fleet') {
+            _shipInfoTarget = null;
+            return;
+        }
         var d = _shipInfoTarget.data;
 
         // Tooltip dimensions
-        var tw = 220, th = 140;
+        var tw = 220, th = 110;
         var tx = Math.min(_shipInfoTarget.screenX + 10, Config.VIEWPORT_W - tw - 10);
         var ty = Math.min(_shipInfoTarget.screenY + 10, Config.VIEWPORT_H - th - 10);
 
@@ -1640,28 +1658,16 @@ var Render = (function () {
         // Name
         _ctx.fillStyle = '#00ffaa';
         _ctx.font = 'bold 12px monospace';
-        _ctx.fillText(d.name || d.id || 'Unknown', px, py);
+        _ctx.fillText(d.name || d.id || 'Fleet Ship', px, py);
         py += 16;
 
-        // Type
-        _ctx.fillStyle = '#aaaacc';
+        _ctx.fillStyle = Config.COLORS.ally;
         _ctx.font = '11px monospace';
-        if (_shipInfoTarget.type === 'npc') {
-            var fName = d.faction || 'unknown';
-            _ctx.fillStyle = _getFactionColor(d.faction);
-            _ctx.fillText('Faction: ' + fName, px, py);
-            py += 14;
-            _ctx.fillStyle = '#aaaacc';
-            _ctx.fillText('Role: ' + (d.behavior || d.role || 'patrol'), px, py);
-            py += 14;
-        } else {
-            _ctx.fillStyle = Config.COLORS.ally;
-            _ctx.fillText('Fleet Ship', px, py);
-            py += 14;
-            _ctx.fillStyle = '#aaaacc';
-            _ctx.fillText('Order: ' + (d.order || 'follow'), px, py);
-            py += 14;
-        }
+        _ctx.fillText('Fleet Ship', px, py);
+        py += 14;
+        _ctx.fillStyle = '#aaaacc';
+        _ctx.fillText('Order: ' + (d.order || 'follow'), px, py);
+        py += 14;
 
         // Stats
         _ctx.fillStyle = '#cccccc';
@@ -1671,23 +1677,6 @@ var Render = (function () {
         py += 13;
         _ctx.fillText('Shield: ' + Math.ceil(d.shieldHp || 0) + '/' + Math.ceil(d.maxShieldHp || 0), px, py);
         py += 13;
-        _ctx.fillText('Speed: ' + (d.speed || 0).toFixed(1), px, py);
-        py += 13;
-
-        // Template info
-        if (d.templateId) {
-            _ctx.fillStyle = '#888';
-            _ctx.fillText('Type: ' + d.templateId, px, py);
-            py += 13;
-        }
-
-        // Weapon info
-        if (d.weapon || d.weapons) {
-            var wpnName = d.weapon || (d.weapons && d.weapons[0]) || 'none';
-            var wpnDef = Config.BLOCK_TYPES[wpnName] || Config.WEAPON_TYPES[wpnName];
-            _ctx.fillStyle = '#ff8844';
-            _ctx.fillText('Weapon: ' + (wpnDef ? wpnDef.name : wpnName), px, py);
-        }
 
         // Close hint
         _ctx.fillStyle = '#555';

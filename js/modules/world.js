@@ -6,6 +6,62 @@
 var World = (function () {
     'use strict';
 
+    // Commander name pools — multicultural, reflecting 2202 colonization era
+    var _FIRST_NAMES = [
+        'James','Sofia','Wei','Yuki','Amara','Raj','Dmitri','Fatima','Carlos','Mei',
+        'Aleksandr','Nia','Hassan','Ingrid','Tomoko','Kwame','Elena','Ravi','Aisha','Marco',
+        'Lian','Olga','Kofi','Hana','Viktor','Priya','Chen','Isabella','Jamal','Sakura',
+        'Nikolai','Zara','Kenji','Adriana','Omar','Sven','Ananya','Diego','Yuna','Boris',
+        'Leila','Takeshi','Valentina','Emeka','Astrid','Hiroshi','Carmen','Oleg','Amina','Lars',
+        'Ximena','Akira','Natasha','Kwesi','Freya','Renzo','Sunita','Ivan','Lucia','Tariq',
+        'Mika','Sergei','Aaliya','Gabriel','Chandra','Henrik','Esperanza','Jiro','Katya','Adebayo',
+        'Linnea','Paolo','Deepa','Mikhail','Nadia','Shinji','Claudia','Abdul','Eira','Mateo',
+        'Haruki','Svetlana','Kamau','Birgit','Arjun','Pilar','Daichi','Yelena','Obi','Sigrid',
+        'Rohan','Marisol','Kazuo','Irina','Eze','Helga','Vikram','Paloma','Tetsu','Maren',
+        'Sanjay','Liliana','Isamu','Daria','Chukwu','Astrid','Mohan','Camila','Ren','Petra',
+        'Kiran','Rosario','Hayato','Ludmila','Sekou','Elke','Nikhil','Fernanda','Shin','Anya',
+        'Prasad','Gloria','Kaito','Veronika','Idris','Lotte','Arun','Mercedes','Taro','Saskia',
+        'Ganesh','Aurora','Nobu','Zoya','Malik','Heidi','Rahul','Ines','Koji','Klara',
+        'Vivek','Daniela','Masato','Polina','Jelani','Greta','Suresh','Lorena','Hideo','Sonja',
+        'Anand','Beatriz','Shota','Galina','Tendai','Britt','Ajay','Alicia','Ryota','Marina',
+        'Ashok','Veronica','Yuji','Tamara','Kojo','Johanna','Manish','Catalina','Sosuke','Larisa',
+        'Naveen','Andrea','Takuya','Oxana','Dayo','Karin','Patel','Teresa','Genki','Vera',
+        'Hari','Alejandra','Satoshi','Natalya','Femi','Marta','Deepak','Raquel','Makoto','Lydia',
+        'Venkat','Patricia','Kenta','Eva','Taiwo','Kristin','Ramesh','Dolores','Minoru','Julia',
+        'Santosh','Monica','Hideki','Alina','Bola','Liv','Naren','Silvia','Itsuki','Kseniya',
+        'Mahesh','Angela','Riku','Dina','Abasi','Tove','Gopal','Leticia','Sora','Darya',
+        'Chetan','Gabriela','Yuto','Ulyana','Obinna','Solveig','Bharat','Mariana','Naoki','Vasilisa',
+        'Dinesh','Renata','Haruto','Elizaveta','Kayode','Turid','Sachin','Adrienne','Akio','Raisa',
+        'Umesh','Josephine','Soma','Tatyana','Wale','Dagny','Kunal','Antonia','Eito','Lyudmila',
+        'Vinod','Rita','Taiga','Alla','Simba','Hedda','Kamal','Celia','Sho','Nina',
+        'Rakesh','Estela','Asahi','Galyna','Mosi','Oda','Ishaan','Alma','Zen','Vanda',
+        'Hemant','Piedad','Kou','Milena','Azizi','Runa','Varun','Milagros','Sei','Agata',
+        'Yogesh','Consuelo','Hibiki','Snezhana','Diallo','Marit','Chirag','Elvira','Itsuki','Yulia',
+        'Gaurav','Socorro','Taiki','Stanislava','Babatunde','Vigdis','Aditya','Encarnacion','Soma','Alla'
+    ];
+    var _LAST_NAMES = [
+        'Chen','Rodriguez','Nakamura','Petrov','Okafor','Singh','Mueller','Kim','Santos','Johansson',
+        'Ivanov','Okonkwo','Patel','Yamamoto','Garcia','Andersson','Volkov','Nwosu','Kumar','Takahashi',
+        'Martinez','Larsson','Sorokin','Adeyemi','Sharma','Tanaka','Lopez','Eriksson','Kozlov','Obi',
+        'Gupta','Watanabe','Hernandez','Nielsen','Popov','Eze','Malhotra','Ito','Gonzalez','Olsen',
+        'Kuznetsov','Okoro','Joshi','Suzuki','Morales','Lindgren','Fedorov','Chukwu','Agarwal','Sato',
+        'Reyes','Bergstrom','Novikov','Abiodun','Reddy','Kobayashi','Flores','Dahl','Morozov','Nnamdi',
+        'Banerjee','Kato','Cruz','Holm','Lebedev','Azikiwe','Tiwari','Yoshida','Ramos','Hauge',
+        'Smirnov','Olusola','Bhat','Mori','Torres','Strand','Orlov','Adebisi','Iyer','Saito',
+        'Rivera','Nilsson','Voloshyn','Emeka','Nair','Ogawa','Diaz','Lund','Zakharov','Uche',
+        'Mishra','Matsumoto','Ramirez','Sundberg','Grigoriev','Oluwole','Menon','Fujita','Gutierrez','Strom',
+        'Pavlov','Osei','Pillai','Inoue','Mendoza','Berglund','Karpov','Mensah','Saxena','Hasegawa',
+        'Castillo','Hedlund','Tarasov','Asante','Kapoor','Shimizu','Vargas','Lindqvist','Romanov','Kwarteng',
+        'Verma','Okada','Rojas','Almgren','Baranov','Boateng','Choudhury','Hayashi','Ortiz','Engstrom',
+        'Yegorov','Appiah','Kulkarni','Ishikawa','Guerrero','Sandberg','Makarov','Owusu','Rao','Morita',
+        'Medina','Forsberg','Kirillov','Achebe','Mukherjee','Nishimura','Delgado','Ekholm','Titov','Balogun',
+        'Pandey','Ono','Cabrera','Hallberg','Belyaev','Dike','Srivastava','Kaneko','Nunez','Wallin',
+        'Sidorov','Onyema','Bhatt','Noguchi','Padilla','Sjostrom','Kovalev','Igwe','Mehra','Aoki',
+        'Fuentes','Henriksson','Zaitsev','Ogunyemi','Chauhan','Kimura','Delgado','Magnusson','Belov','Effiong',
+        'Dubey','Endo','Arias','Dahlberg','Gusev','Olawale','Trivedi','Matsuda','Figueroa','Nordin',
+        'Andreev','Bassey','Rawat','Kawaguchi','Aguilar','Akerlund','Vinogradov','Amadi','Thakur','Ueda'
+    ];
+
     var _locations = [];       // active location objects (from Config + player-built)
     var _stars = [];           // background decoration
     var _nebulae = [];
@@ -233,6 +289,9 @@ var World = (function () {
             aiTimer: 0,
             dead: false
         };
+        npc.commander = _FIRST_NAMES[Math.floor(Math.random() * _FIRST_NAMES.length)] + ' ' + _LAST_NAMES[Math.floor(Math.random() * _LAST_NAMES.length)];
+        npc.morale = 50 + Math.floor(Math.random() * 50);
+        npc.disposition = npc.faction;
         _npcs.push(npc);
         return npc;
     }

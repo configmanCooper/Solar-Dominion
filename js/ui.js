@@ -187,10 +187,17 @@ var UI = (function () {
         Events.on('asteroid_depleted', function () {
             showToast('⛏ Asteroid depleted!', 'info');
         });
+
+        _wireNpcEvents();
     }
 
     function handleInput() {
         if (Input.justPressed('ESCAPE')) {
+            // Close NPC panel if open
+            if (_npcPanel) {
+                _closeNpcPanel();
+                return;
+            }
             // Close ship editor first if open
             if (_editorOpen) {
                 _closeShipEditor();
@@ -3003,6 +3010,566 @@ var UI = (function () {
 
     function isGodMode() { return _godMode; }
     function getGodSpeedBonus() { return _godSpeedBonus; }
+
+    // ================================================================
+    // NPC Interaction Panel
+    // ================================================================
+    var _npcPanel = null;
+    var _npcPanelTarget = null;
+
+    var _NPC_DIALOGUE = {
+        hail: {
+            earth_patrol: [
+                "This is {commander}, patrolling sector {sector}. Stay clear of military operations.",
+                "Earth Alliance vessel on patrol. State your business, pilot.",
+                "Commander {commander} reporting. All quiet in this sector.",
+                "EA patrol ship here. We're keeping the peace — move along.",
+                "This is {commander}. We've got our eyes on Mars movements in this area.",
+                "Earth Alliance patrol. Identify yourself... Ah, civilian. Carry on.",
+                "Sector {sector} is secure. {commander} out.",
+                "Watch yourself out here. Mars raiders have been sighted nearby."
+            ],
+            earth_battle: [
+                "Earth Alliance warship {ship}. You're in a combat zone, civilian.",
+                "Commander {commander} here. We're on offensive operations — keep your distance.",
+                "This is battlegroup {commander}. Mars won't know what hit them.",
+                "EA combat vessel. We're heading to engage hostiles. Stay clear.",
+                "War is ugly, pilot. But someone has to fight for Earth.",
+                "{commander} here. If you're not shooting Mars ships, you're in my way.",
+                "Earth Alliance combat ops. This frequency is restricted.",
+                "We've got targets ahead. {commander} signing off."
+            ],
+            earth_trade: [
+                "Earth trade vessel here. Markets are volatile with this war on.",
+                "Captain {commander}. Running supplies to the front lines.",
+                "EA logistics. Fuel prices are murder these days.",
+                "Trade ship {ship} reporting. Need an escort? We could use one.",
+                "{commander} here. Just trying to make an honest living out here.",
+                "Earth merchant vessel. Got goods if you've got credits.",
+                "Supply run to the colonies. Long haul but pays well.",
+                "Trader {commander}. Heard any good routes lately?"
+            ],
+            earth_diplomacy: [
+                "Earth diplomatic envoy. {commander} at your service.",
+                "We're on a peace mission. Every conversation counts.",
+                "Ambassador {commander} here. The war doesn't have to continue.",
+                "Earth diplomatic corps. We believe in dialogue over destruction.",
+                "{commander} reporting. Working back-channels for ceasefire talks.",
+                "Diplomacy ship. We go where soldiers can't.",
+                "Peace is harder than war, but more rewarding. — {commander}",
+                "Earth envoy. Mars has reasonable people too, you know."
+            ],
+            mars_patrol: [
+                "Mars Confederacy warship. You're entering contested space.",
+                "Commander {commander} here. This sector is under Mars control.",
+                "MC patrol vessel. Identify or be flagged hostile.",
+                "{commander} on watch. Earth thinks they own everything out here.",
+                "Mars patrol. Our tech keeps these lanes safe.",
+                "Confederacy ship {ship}. We see everything in this sector.",
+                "This is {commander}. Mars protects its own.",
+                "Patrol vessel reporting. No unauthorized traffic in MC space."
+            ],
+            mars_battle: [
+                "Mars Confederacy strike ship. Clear the area immediately.",
+                "Commander {commander}. Earth's fleet is about to have a bad day.",
+                "MC battle cruiser. Our weapons are online. Don't test us.",
+                "{commander} here. Mars fights with precision, not numbers.",
+                "Strike force {commander}. We're hunting Earth capital ships.",
+                "Mars heavy combat vessel. Our tech advantage is absolute.",
+                "Confederacy warship. Earth can't match our engineering.",
+                "{commander} reporting. Target locked — wait, you're civilian. Lucky."
+            ],
+            mars_trade: [
+                "Mars trader here. Tech goods at fair prices.",
+                "Captain {commander}. Moving Mars exports — premium electronics.",
+                "MC merchant vessel. Earth's embargo makes everything harder.",
+                "Trader {commander}. Got Martian composites if you need them.",
+                "Mars logistics. War's been good for the arms trade, bad for everything else.",
+                "Merchant {commander} here. The red planet produces the best gear.",
+                "Mars trading vessel. Credits talk, politics walk.",
+                "Captain {commander}. Mars built itself from nothing — we know value."
+            ],
+            mars_diplomacy: [
+                "Mars diplomatic vessel. Commander {commander} speaking.",
+                "We seek mutual respect, not Earth's paternalism.",
+                "MC diplomatic envoy. Independence isn't negotiable.",
+                "{commander} here. Peace yes, submission never.",
+                "Mars diplomacy corps. We'll talk, but on equal terms.",
+                "Envoy {commander}. Earth needs to recognize our sovereignty.",
+                "Diplomatic mission. Mars has always been willing to talk.",
+                "Commander {commander}. Diplomacy backed by strength."
+            ],
+            independent_trade: [
+                "Hey there, captain! Looking to trade? Prices are crazy these days.",
+                "Independent trader {commander}. No flag, no problems.",
+                "Free merchant here. I go where the credits flow.",
+                "{commander} speaking. Best prices this side of the belt!",
+                "Indie trader. Both sides shoot at each other, I sell to both.",
+                "Captain {commander}. Neutrality is expensive but worth it.",
+                "Free trader {ship}. Got a little of everything aboard.",
+                "Independent vessel. War means opportunity if you're careful."
+            ],
+            independent_mining: [
+                "Independent miner {commander}. Just working the rocks.",
+                "Mining vessel here. These asteroids won't harvest themselves.",
+                "Captain {commander}. Found a good vein out here.",
+                "Indie miner. Both factions want our ore — we sell to whoever pays.",
+                "Mining ship {ship}. Dangerous work but honest.",
+                "{commander} here. You mining too? Plenty of rocks for everyone.",
+                "Free miner. The belt doesn't care about your politics.",
+                "Independent mining op. War drives metal prices up — silver lining."
+            ]
+        },
+        fuel_accept: [
+            "Sure, I can spare some fuel. Transferring now.",
+            "You look like you need it more than me. Fuel incoming.",
+            "Alright, sending over 20% reserves. Don't make a habit of this.",
+            "Transferring fuel. We pilots have to stick together out here.",
+            "Fuel transfer initiated. Safe travels, friend.",
+            "I've got a surplus anyway. Take it.",
+            "Sending fuel your way. Pay it forward someday.",
+            "No one should be stranded out here. Fuel's on its way."
+        ],
+        fuel_refuse: [
+            "Sorry, running low myself. Can't spare any.",
+            "Negative on fuel transfer. I've got a long trip ahead.",
+            "Can't help you there. Try a station.",
+            "My fuel's spoken for. Good luck though.",
+            "Not this time. War's got supply lines stretched thin.",
+            "Wish I could help but I'm barely making it to port myself."
+        ],
+        supplies_accept: [
+            "I've got some spare materials. Sending them over.",
+            "Here, take these. I was going to sell them but you need them more.",
+            "Transferring supplies. Consider it a goodwill gesture.",
+            "Got some excess cargo. It's yours.",
+            "Sending over what I can spare. Not much, but it helps."
+        ],
+        supplies_refuse: [
+            "Sorry, I need everything I've got.",
+            "Can't spare supplies right now. Check with a station.",
+            "Negative. My cargo's already committed.",
+            "Not this time, friend. Running lean myself."
+        ],
+        intel: {
+            earth: [
+                "Mars has been massing ships near {location}. Watch yourself.",
+                "Earth fleet command reports heavy activity in sector {sector}.",
+                "I've seen Mars raiders hitting supply convoys near {location}.",
+                "Word is Earth's planning a push toward Mars orbital. Big one.",
+                "Independent traders spotted Mars scouts near the asteroid belt.",
+                "There's a contested zone forming around {location}. Avoid it.",
+                "Earth intelligence says Mars is testing new weapons systems.",
+                "Heard Mars lost a battlecruiser near {location} yesterday."
+            ],
+            mars: [
+                "Earth's amassing near {location}. Classic expansion tactics.",
+                "Mars intel reports Earth patrol increase near {location}.",
+                "Our scouts spotted Earth battle groups moving toward the belt.",
+                "Word from MC command: expect Earth offensive within cycles.",
+                "Earth's supply lines near {location} are overextended. Opportunity.",
+                "Mars tech division reports Earth's shields have a new weakness.",
+                "Confederacy fleet positioning near {location} for defense.",
+                "Earth lost territory near {location}. They're desperate."
+            ],
+            independent: [
+                "Both sides are building up near {location}. Bad place to be.",
+                "I've mapped safe routes avoiding the hotspots. Stick to the edges.",
+                "Traders are rerouting around {location}. Too much crossfire.",
+                "Heard a rumor about abandoned tech near the belt. Could be salvage.",
+                "Fuel prices spiked at {location}. Supply issues.",
+                "Word is there's unclaimed asteroid fields nobody's found yet.",
+                "Both factions ignore the outer routes. Safer out there.",
+                "A trader told me about a hidden station. Could be useful."
+            ]
+        },
+        war_opinion: {
+            earth: [
+                "Mars took our research stations without provocation. We have to respond.",
+                "The Confederacy thinks they can bully us with their tech advantage. They're wrong.",
+                "I just want this over. My family's back on Earth waiting.",
+                "We built the first colonies. Mars wouldn't exist without Earth's investment.",
+                "This war could end tomorrow if Mars would just negotiate fairly.",
+                "Earth's not perfect, but at least we believe in democratic rule.",
+                "The Confederacy's 'independence' was funded by our taxes for decades.",
+                "I've lost friends to Mars raiders. This isn't politics anymore — it's personal.",
+                "We're fighting for unity. A fractured humanity can't survive out here.",
+                "Mars has brilliant engineers. Shame they build weapons instead of bridges."
+            ],
+            mars: [
+                "Earth treated us like a colony. We built this world from nothing — it's ours.",
+                "The Alliance stripped our resources for decades. This war was inevitable.",
+                "Our tech gives us an edge, but Earth has numbers. It's going to be a long fight.",
+                "Independence isn't radical. It's basic dignity.",
+                "Earth wants to control everything from Sol to the belt. We said no.",
+                "My grandparents terraformed with their bare hands. Earth thinks that's theirs?",
+                "The Confederacy earns its freedom every day. Earth inherits.",
+                "We're outnumbered 3-to-1. But our ships are worth 5 of theirs.",
+                "This war ends when Earth accepts reality. Mars is sovereign.",
+                "Every Martian child learns engineering before politics. That's our edge."
+            ],
+            independent: [
+                "Both sides have their points. I just want safe trade routes.",
+                "This war is bad for business. Fuel prices are through the roof.",
+                "The Moon's smart to stay neutral. Wish more stations would.",
+                "I sell to both sides. War's the only growth industry right now.",
+                "Neither Earth nor Mars cares about the little guy. Same as always.",
+                "You want my opinion? They should split the belt and call it done.",
+                "War makes people buy my goods. Peace makes them affordable. Pick one.",
+                "I've got friends on both sides. This whole thing's a tragedy.",
+                "The outer colonies just want to be left alone. Fat chance.",
+                "Both factions come to us for supplies, then call us 'neutral' like it's an insult."
+            ]
+        },
+        surrender: [
+            "Alright! We surrender! Don't fire — we're powering down weapons.",
+            "You win, you win! Ceasing hostilities!",
+            "Commander {commander} standing down. We yield.",
+            "Enough! We can't take more damage. We surrender.",
+            "White flag! HOLD FIRE! We give up!"
+        ],
+        surrender_refuse: [
+            "We'll never surrender to the likes of you!",
+            "You think we're beaten? Think again!",
+            "The {faction} doesn't yield!",
+            "Over my dead body! ... Wait, poor choice of words.",
+            "Surrender? Ha! We've barely started fighting."
+        ],
+        hostile_hail: [
+            "You dare hail us? After what you've done?",
+            "... ... Nothing to say to you, pilot.",
+            "Turn around before we open fire.",
+            "This channel is for civilized people only.",
+            "One chance. Leave now or burn."
+        ],
+        hostile_hail_deescalate: [
+            "... Fine. You've got one minute to explain yourself.",
+            "Wait — stand down weapons. Let them talk.",
+            "Hmm. You've got guts, I'll give you that. Speak.",
+            "Against my better judgment... I'm listening."
+        ],
+        alliance_accept: [
+            "You've proven yourself, pilot. We'll fly with you.",
+            "Commander {commander} reporting for temporary duty. Lead the way.",
+            "Alliance accepted. Don't make me regret this.",
+            "Alright, we're with you. Where are we heading?"
+        ],
+        alliance_refuse: [
+            "I don't know you well enough for that, pilot.",
+            "Negative on alliance. Prove yourself first.",
+            "My orders don't allow freelance operations.",
+            "Maybe next time. Build some reputation first."
+        ],
+        trader_offer: [
+            "A trade? Now you're talking! What've you got?",
+            "Always open for business! Let's see what you have.",
+            "Captain {commander}'s shop is open. What'll it be?",
+            "Trade negotiations are my favorite kind of conversation."
+        ],
+        trader_rumors: [
+            "Heard there's a derelict ship near the belt. Might have salvage.",
+            "Word is Earth's developing a new shield technology. Game changer.",
+            "Mars traders say the Confederacy found rare minerals on Phobos.",
+            "A pilot told me about a shortcut through the nebula. Risky but fast.",
+            "Rumor has it there's a hidden station where you can get black market upgrades.",
+            "Both factions are ignoring the outer rim. Opportunity for the bold.",
+            "I heard Luna's considering breaking neutrality. That would change everything.",
+            "There's talk of a ceasefire proposal. Markets are jittery."
+        ]
+    };
+
+    function _getFactionKey(npc) {
+        if (npc.faction === Config.FACTION.EARTH) return 'earth';
+        if (npc.faction === Config.FACTION.MARS) return 'mars';
+        return 'independent';
+    }
+
+    function _getDialogueCategory(npc) {
+        var fKey = _getFactionKey(npc);
+        var beh = npc.behavior || 'patrol';
+        return fKey + '_' + (beh === 'trade' ? 'trade' : beh === 'battle' ? 'battle' : beh === 'diplomacy' ? 'diplomacy' : beh === 'mining' ? 'mining' : 'patrol');
+    }
+
+    function _pickRandom(arr) {
+        return arr[Math.floor(Math.random() * arr.length)];
+    }
+
+    function _formatDialogue(text, npc) {
+        var locs = World.getLocations();
+        var loc = locs.length > 0 ? _pickRandom(locs) : { name: 'unknown' };
+        return text
+            .replace(/\{commander\}/g, npc.commander || 'Unknown')
+            .replace(/\{ship\}/g, npc.templateName || npc.templateId || 'vessel')
+            .replace(/\{faction\}/g, npc.faction || 'unknown')
+            .replace(/\{sector\}/g, Math.floor(npc.x / 1000) + '-' + Math.floor(npc.y / 1000))
+            .replace(/\{location\}/g, loc.name)
+            .replace(/\{x\}/g, Math.floor(npc.x));
+    }
+
+    function _isNpcHostile(npc) {
+        return npc.hostile || (typeof Factions !== 'undefined' && Factions.isHostile && Factions.isHostile(npc.faction));
+    }
+
+    function _isNpcFriendly(npc) {
+        // Same faction or non-hostile
+        var ship = Ship.getShip();
+        if (!ship) return false;
+        if (npc.faction === 'independent') return true;
+        return !_isNpcHostile(npc);
+    }
+
+    function _closeNpcPanel() {
+        if (_npcPanel && _npcPanel.parentNode) {
+            _npcPanel.parentNode.removeChild(_npcPanel);
+        }
+        _npcPanel = null;
+        _npcPanelTarget = null;
+    }
+
+    function _showNpcPanel(data) {
+        _closeNpcPanel();
+        var npc = data.npc;
+        _npcPanelTarget = npc;
+
+        var panel = document.createElement('div');
+        panel.id = 'npcInteractPanel';
+
+        var hostile = _isNpcHostile(npc);
+        var isTrader = npc.behavior === 'trade' || npc.behavior === 'mining';
+        var factionName = npc.faction || 'Independent';
+
+        // Header
+        var header = document.createElement('div');
+        header.className = 'npc-panel-header';
+        header.innerHTML = '<span class="npc-panel-name">CDR. ' + (npc.commander || 'Unknown') + '</span>' +
+            '<span class="npc-panel-faction">' + factionName + '</span>' +
+            '<button class="npc-panel-close">\u2715</button>';
+        panel.appendChild(header);
+
+        // Stats
+        var stats = document.createElement('div');
+        stats.className = 'npc-panel-stats';
+        var hpPct = npc.maxHp > 0 ? Math.ceil(npc.hp / npc.maxHp * 100) : 0;
+        var shPct = npc.maxShieldHp > 0 ? Math.ceil(npc.shieldHp / npc.maxShieldHp * 100) : 0;
+        stats.innerHTML = 'Ship: ' + (npc.templateName || npc.templateId || 'Unknown') +
+            ' | HP: ' + hpPct + '% | Shield: ' + shPct + '%' +
+            '<br>Role: ' + (npc.behavior || 'patrol') + ' | Morale: ' + (npc.morale || 50);
+        panel.appendChild(stats);
+
+        // Actions
+        var actions = document.createElement('div');
+        actions.className = 'npc-panel-actions';
+
+        if (hostile) {
+            actions.appendChild(_makeActionBtn('\uD83D\uDCE1 Hail', 'info', function () { _npcHailHostile(npc); }));
+            if (hpPct < 30) {
+                actions.appendChild(_makeActionBtn('\uD83C\uDFF3\uFE0F Demand Surrender', 'friendly', function () { _npcDemandSurrender(npc); }));
+            }
+            actions.appendChild(_makeActionBtn('\u2694\uFE0F Attack', 'hostile', function () { _npcAttack(npc); }));
+        } else if (isTrader && !hostile) {
+            actions.appendChild(_makeActionBtn('\uD83D\uDCE1 Hail', 'info', function () { _npcHail(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83D\uDCB0 Offer Trade', 'friendly', function () { _npcTrade(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83D\uDDFA\uFE0F Ask Intel', 'info', function () { _npcIntel(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83D\uDCAC Ask about Rumors', 'info', function () { _npcRumors(npc); }));
+            actions.appendChild(_makeActionBtn('\u2694\uFE0F Attack', 'hostile', function () { _npcAttack(npc); }));
+        } else {
+            actions.appendChild(_makeActionBtn('\uD83D\uDCE1 Hail', 'info', function () { _npcHail(npc); }));
+            actions.appendChild(_makeActionBtn('\u26FD Request Fuel', 'friendly', function () { _npcRequestFuel(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83D\uDCE6 Request Supplies', 'friendly', function () { _npcRequestSupplies(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83D\uDDFA\uFE0F Ask Intel', 'info', function () { _npcIntel(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83D\uDCAC Ask about the War', 'info', function () { _npcWarOpinion(npc); }));
+            actions.appendChild(_makeActionBtn('\uD83E\uDD1D Propose Alliance', 'friendly', function () { _npcProposeAlliance(npc); }));
+            actions.appendChild(_makeActionBtn('\u2694\uFE0F Attack', 'hostile', function () { _npcAttack(npc); }));
+        }
+        panel.appendChild(actions);
+
+        // Dialogue area
+        var dialogue = document.createElement('div');
+        dialogue.className = 'npc-panel-dialogue';
+        dialogue.id = 'npcDialogueArea';
+        dialogue.textContent = 'Select an action to interact...';
+        panel.appendChild(dialogue);
+
+        document.body.appendChild(panel);
+        _npcPanel = panel;
+
+        // Close button
+        header.querySelector('.npc-panel-close').addEventListener('click', _closeNpcPanel);
+    }
+
+    function _makeActionBtn(label, type, callback) {
+        var btn = document.createElement('button');
+        btn.className = 'npc-action-btn npc-action-' + type;
+        btn.textContent = label;
+        btn.addEventListener('click', callback);
+        return btn;
+    }
+
+    function _setDialogue(text) {
+        var area = document.getElementById('npcDialogueArea');
+        if (area) area.textContent = text;
+    }
+
+    function _npcHail(npc) {
+        var cat = _getDialogueCategory(npc);
+        var lines = _NPC_DIALOGUE.hail[cat] || _NPC_DIALOGUE.hail['independent_trade'];
+        _setDialogue(_formatDialogue(_pickRandom(lines), npc));
+    }
+
+    function _npcHailHostile(npc) {
+        // 20% chance of de-escalation
+        if (Math.random() < 0.2) {
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.hostile_hail_deescalate), npc));
+            npc.hostile = false;
+            showToast('Tension de-escalated with ' + npc.commander, 'success');
+            // Refresh panel
+            setTimeout(function () { _showNpcPanel({ npc: npc }); }, 500);
+        } else {
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.hostile_hail), npc));
+        }
+    }
+
+    function _npcRequestFuel(npc) {
+        var ship = Ship.getShip();
+        if (!ship) return;
+        var fuelPct = ship.fuel / ship.maxFuel;
+        if (fuelPct >= 0.5) {
+            _setDialogue("Your fuel tanks look fine to me. I'm not wasting mine.");
+            return;
+        }
+        if (Math.random() < 0.6) {
+            var amount = Math.floor(ship.maxFuel * 0.2);
+            ship.fuel = Math.min(ship.fuel + amount, ship.maxFuel);
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.fuel_accept), npc));
+            showToast('+' + amount + ' fuel from ' + npc.commander, 'success');
+        } else {
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.fuel_refuse), npc));
+        }
+    }
+
+    function _npcRequestSupplies(npc) {
+        var ship = Ship.getShip();
+        if (!ship) return;
+        if (Math.random() < 0.35) {
+            var resources = ['metal', 'electronics', 'composites'];
+            var res = _pickRandom(resources);
+            var amount = 5 + Math.floor(Math.random() * 10);
+            if (ship.inventory) {
+                ship.inventory[res] = (ship.inventory[res] || 0) + amount;
+            }
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.supplies_accept), npc));
+            showToast('+' + amount + ' ' + res + ' from ' + npc.commander, 'success');
+        } else {
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.supplies_refuse), npc));
+        }
+    }
+
+    function _npcIntel(npc) {
+        var fKey = _getFactionKey(npc);
+        var lines = _NPC_DIALOGUE.intel[fKey] || _NPC_DIALOGUE.intel['independent'];
+        _setDialogue(_formatDialogue(_pickRandom(lines), npc));
+    }
+
+    function _npcWarOpinion(npc) {
+        var fKey = _getFactionKey(npc);
+        var lines = _NPC_DIALOGUE.war_opinion[fKey] || _NPC_DIALOGUE.war_opinion['independent'];
+        _setDialogue(_formatDialogue(_pickRandom(lines), npc));
+    }
+
+    function _npcProposeAlliance(npc) {
+        // Check reputation — requires non-hostile faction
+        if (_isNpcHostile(npc)) {
+            _setDialogue("They would never ally with someone hostile to their faction.");
+            return;
+        }
+        if (Math.random() < 0.4) {
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.alliance_accept), npc));
+            // Add to fleet temporarily (or mark as allied)
+            npc.allied = true;
+            npc.allyTimer = 300; // 5 minutes at 1tick/sec
+            showToast(npc.commander + ' joins your fleet temporarily!', 'success');
+        } else {
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.alliance_refuse), npc));
+        }
+    }
+
+    function _npcDemandSurrender(npc) {
+        var hpPct = npc.maxHp > 0 ? npc.hp / npc.maxHp : 1;
+        if (hpPct < 0.3 && Math.random() < 0.6) {
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.surrender), npc));
+            npc.hostile = false;
+            npc.allied = true;
+            npc.surrendered = true;
+            showToast(npc.commander + ' surrenders!', 'success');
+            _closeNpcPanel();
+        } else {
+            _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.surrender_refuse), npc));
+        }
+    }
+
+    function _npcTrade(npc) {
+        _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.trader_offer), npc));
+        // Simple trade: give the player some random resource
+        var ship = Ship.getShip();
+        if (ship && ship.inventory) {
+            var resources = ['metal', 'electronics', 'composites', 'fuel_cells'];
+            var res = _pickRandom(resources);
+            var amount = 3 + Math.floor(Math.random() * 8);
+            ship.inventory[res] = (ship.inventory[res] || 0) + amount;
+            showToast('Traded: +' + amount + ' ' + res, 'success');
+        }
+    }
+
+    function _npcRumors(npc) {
+        _setDialogue(_formatDialogue(_pickRandom(_NPC_DIALOGUE.trader_rumors), npc));
+    }
+
+    function _npcAttack(npc) {
+        npc.hostile = true;
+        if (typeof Factions !== 'undefined' && Factions.changeRep) {
+            Factions.changeRep(npc.faction, -5);
+        }
+        Events.emit('npc_attacked', { npc: npc });
+        showToast('Engaging ' + (npc.commander || 'enemy') + '!', 'combat');
+        _closeNpcPanel();
+    }
+
+    function _showAttackConfirm(data) {
+        var npc = data.npc;
+        var hostile = _isNpcHostile(npc);
+
+        if (hostile) {
+            // Already hostile, just attack
+            _npcAttack(npc);
+            return;
+        }
+
+        // Show confirmation dialog
+        _closeNpcPanel();
+        var dialog = document.createElement('div');
+        dialog.id = 'npcAttackConfirm';
+        dialog.innerHTML = '<div class="npc-confirm-text">Attack ' + (npc.commander || 'Unknown') +
+            '\'s ' + (npc.templateName || 'ship') + '?<br><span class="npc-confirm-warning">This will make ' +
+            (npc.faction || 'their faction') + ' hostile.</span></div>' +
+            '<div class="npc-confirm-buttons">' +
+            '<button class="npc-action-btn npc-action-hostile" id="npcConfirmYes">\u2694\uFE0F Confirm Attack</button>' +
+            '<button class="npc-action-btn npc-action-info" id="npcConfirmNo">Cancel</button></div>';
+        document.body.appendChild(dialog);
+
+        document.getElementById('npcConfirmYes').addEventListener('click', function () {
+            document.body.removeChild(dialog);
+            _npcAttack(npc);
+        });
+        document.getElementById('npcConfirmNo').addEventListener('click', function () {
+            document.body.removeChild(dialog);
+        });
+    }
+
+    // Wire NPC interaction events
+    function _wireNpcEvents() {
+        Events.on('npc_selected', _showNpcPanel);
+        Events.on('npc_attack_request', _showAttackConfirm);
+    }
 
     return {
         init: init,

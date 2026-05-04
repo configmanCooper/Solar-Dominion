@@ -793,3 +793,170 @@ body {
 .trade-event-name { font-weight: bold; }
 .trade-event-desc { color: #88aacc; flex: 1; }
 .trade-event-duration { color: #667788; font-style: italic; }
+
+/* ── NPC Interaction Panel ─────────────────────────────────── */
+#npcInteractPanel {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(10, 15, 35, 0.95);
+    border: 1px solid #334466;
+    border-radius: 8px;
+    padding: 16px;
+    min-width: 320px;
+    max-width: 420px;
+    z-index: 1500;
+    color: #ddd;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 0 30px rgba(0, 100, 255, 0.2);
+}
+
+.npc-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #334466;
+}
+
+.npc-panel-name {
+    font-size: 14px;
+    font-weight: bold;
+    color: #00ffaa;
+    text-shadow: 0 0 8px rgba(0, 255, 170, 0.3);
+}
+
+.npc-panel-faction {
+    font-size: 11px;
+    color: #88aacc;
+    margin-left: 12px;
+}
+
+.npc-panel-close {
+    background: none;
+    border: 1px solid #445566;
+    color: #888;
+    font-size: 14px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.15s;
+}
+
+.npc-panel-close:hover {
+    color: #ff4444;
+    border-color: #ff4444;
+}
+
+.npc-panel-stats {
+    font-size: 10px;
+    color: #8899aa;
+    margin-bottom: 12px;
+    padding: 6px 8px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 4px;
+    line-height: 1.6;
+}
+
+.npc-panel-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+}
+
+.npc-action-btn {
+    padding: 5px 10px;
+    font-size: 11px;
+    font-family: 'Courier New', monospace;
+    border: 1px solid #334466;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: rgba(20, 25, 50, 0.8);
+    color: #aaccee;
+}
+
+.npc-action-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 100, 255, 0.2);
+}
+
+.npc-action-friendly {
+    border-color: #2a6b3a;
+    color: #66dd88;
+}
+
+.npc-action-friendly:hover {
+    background: rgba(30, 80, 50, 0.6);
+    border-color: #44cc66;
+}
+
+.npc-action-hostile {
+    border-color: #6b2a2a;
+    color: #dd6666;
+}
+
+.npc-action-hostile:hover {
+    background: rgba(80, 30, 30, 0.6);
+    border-color: #cc4444;
+}
+
+.npc-action-info {
+    border-color: #2a4a6b;
+    color: #6699dd;
+}
+
+.npc-action-info:hover {
+    background: rgba(30, 50, 80, 0.6);
+    border-color: #4488cc;
+}
+
+.npc-panel-dialogue {
+    font-size: 12px;
+    color: #ccddee;
+    padding: 10px;
+    background: rgba(0, 20, 40, 0.5);
+    border: 1px solid #223344;
+    border-radius: 4px;
+    min-height: 50px;
+    line-height: 1.5;
+    font-style: italic;
+}
+
+/* ── NPC Attack Confirm Dialog ─────────────────────────────── */
+#npcAttackConfirm {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(15, 10, 10, 0.97);
+    border: 1px solid #663333;
+    border-radius: 8px;
+    padding: 20px;
+    min-width: 300px;
+    z-index: 1600;
+    color: #ddd;
+    font-family: 'Courier New', monospace;
+    box-shadow: 0 0 40px rgba(255, 50, 50, 0.2);
+    text-align: center;
+}
+
+.npc-confirm-text {
+    font-size: 13px;
+    margin-bottom: 16px;
+    line-height: 1.6;
+}
+
+.npc-confirm-warning {
+    color: #ff6644;
+    font-size: 11px;
+}
+
+.npc-confirm-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
