@@ -3529,8 +3529,10 @@ var UI = (function () {
         if (typeof Factions !== 'undefined' && Factions.changeRep) {
             Factions.changeRep(npc.faction, -5);
         }
+        // Set as auto-attack target
+        Ship.setAttackTarget(npc.id);
         Events.emit('npc_attacked', { npc: npc });
-        showToast('Engaging ' + (npc.commander || 'enemy') + '!', 'combat');
+        showToast('Engaging ' + (npc.commander || 'enemy') + '! Auto-attacking.', 'combat');
         _closeNpcPanel();
     }
 

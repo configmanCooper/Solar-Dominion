@@ -335,6 +335,8 @@ var Ship = (function () {
 
     // Waypoint for click-to-move
     var _waypoint = null;
+    // Auto-attack target (NPC id)
+    var _attackTarget = null;
 
     function setWaypoint(wx, wy) {
         _waypoint = { x: wx, y: wy };
@@ -346,6 +348,18 @@ var Ship = (function () {
 
     function getWaypoint() {
         return _waypoint;
+    }
+
+    function setAttackTarget(npcId) {
+        _attackTarget = npcId;
+    }
+
+    function clearAttackTarget() {
+        _attackTarget = null;
+    }
+
+    function getAttackTarget() {
+        return _attackTarget;
     }
 
     function handleInput() {
@@ -436,9 +450,35 @@ var Ship = (function () {
         _ship.x = Math.max(0, Math.min(Config.WORLD_W, _ship.x));
         _ship.y = Math.max(0, Math.min(Config.WORLD_H, _ship.y));
 
-        // Fire weapon
+        // Fire weapon (manual or auto-attack)
         var weapons = _ship.grid.stats ? _ship.grid.stats.weapons : [];
-        if (Input.isDown('FIRE') && _ship.fireTimer <= 0 && weapons.length > 0) {
+        var autoFired = false;
+
+        // Auto-attack: aim and fire at target if in range
+        if (_attackTarget && _ship.fireTimer <= 0 && weapons.length > 0) {
+            var npcs = World.getNPCs();
+            var tgt = null;
+            for (var ti = 0; ti < npcs.length; ti++) {
+                if (npcs[ti].id === _attackTarget && !npcs[ti].dead) { tgt = npcs[ti]; break; }
+            }
+            if (!tgt) {
+                // Target dead or gone
+                _attackTarget = null;
+            } else {
+                var atDx = tgt.x - _ship.x, atDy = tgt.y - _ship.y;
+                var atDist = Math.sqrt(atDx * atDx + atDy * atDy);
+                var wDef = weapons[_activeWeaponIdx >= weapons.length ? 0 : _activeWeaponIdx];
+                var wRange = wDef && wDef.def ? (wDef.def.range || 250) : 250;
+                if (atDist < wRange * 1.1) {
+                    // Aim at target
+                    _ship.angle = Math.atan2(atDy, atDx);
+                    _fireWeapon(weapons);
+                    autoFired = true;
+                }
+            }
+        }
+
+        if (!autoFired && Input.isDown('FIRE') && _ship.fireTimer <= 0 && weapons.length > 0) {
             _fireWeapon(weapons);
         }
 
@@ -554,6 +594,9 @@ var Ship = (function () {
         setWaypoint: setWaypoint,
         clearWaypoint: clearWaypoint,
         getWaypoint: getWaypoint,
+        setAttackTarget: setAttackTarget,
+        clearAttackTarget: clearAttackTarget,
+        getAttackTarget: getAttackTarget,
         serialize: serialize,
         deserialize: deserialize
     };
