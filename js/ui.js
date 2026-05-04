@@ -79,6 +79,35 @@ var UI = (function () {
             }
         });
 
+        // Escape pod eject button
+        var ejectBtn = document.createElement('button');
+        ejectBtn.id = 'btnEject';
+        ejectBtn.className = 'nav-btn';
+        ejectBtn.textContent = '🚀 EJECT';
+        ejectBtn.style.cssText = 'position:fixed;bottom:60px;right:10px;z-index:1000;background:#cc5500;color:#fff;border:2px solid #ff8800;padding:8px 16px;font-size:14px;font-weight:bold;cursor:pointer;display:none;border-radius:4px;';
+        ejectBtn.addEventListener('click', function () {
+            _showEscapePodDialog();
+        });
+        document.body.appendChild(ejectBtn);
+
+        // Escape pod status display
+        var podStatus = document.createElement('div');
+        podStatus.id = 'escapePodStatus';
+        podStatus.style.cssText = 'position:fixed;top:50px;left:50%;transform:translateX(-50%);z-index:1000;background:rgba(204,85,0,0.9);color:#fff;padding:8px 20px;font-family:monospace;font-size:14px;border:2px solid #ff8800;border-radius:4px;display:none;text-align:center;';
+        document.body.appendChild(podStatus);
+
+        // Hail button (shown during escape pod travel)
+        var hailBtn = document.createElement('button');
+        hailBtn.id = 'btnHail';
+        hailBtn.className = 'nav-btn';
+        hailBtn.textContent = '📡 Hail Nearby Ship';
+        hailBtn.style.cssText = 'position:fixed;bottom:100px;right:10px;z-index:1000;background:#336699;color:#fff;border:2px solid #4488bb;padding:8px 16px;font-size:13px;cursor:pointer;display:none;border-radius:4px;';
+        hailBtn.addEventListener('click', function () {
+            var result = Ship.hailNearbyShip();
+            showToast(result.message, result.success ? 'success' : 'info');
+        });
+        document.body.appendChild(hailBtn);
+
         wireEvents();
 
         // Set initial speed button state (game starts unpaused at 1x)
@@ -109,6 +138,12 @@ var UI = (function () {
         });
         Events.on('player_respawned', function () {
             showToast('Respawned at Luna Colony (-10% credits)', 'warning');
+        });
+        Events.on('escape_pod_activated', function (data) {
+            showToast('🚀 Escape pod activated! Heading to ' + data.destination, 'warning');
+        });
+        Events.on('escape_pod_arrived', function (data) {
+            showToast('🚀 Arrived at ' + data.location + ' in escape pod.', 'success');
         });
         Events.on('victory', function (data) {
             var title = data.type === 'peace' ? '🕊️ Peace Achieved!' :
@@ -192,6 +227,7 @@ var UI = (function () {
     }
 
     function handleInput() {
+        _updateEscapePodUI();
         if (Input.justPressed('ESCAPE')) {
             // Close NPC panel if open
             if (_npcPanel) {
@@ -3736,6 +3772,58 @@ var UI = (function () {
         return map[s] || s;
     }
 
+    function _showEscapePodDialog() {
+        var locs = World.getLocations();
+        var html = '<div style="padding:10px;font-family:monospace;color:#eee;">';
+        html += '<h3 style="color:#ff8800;">🚀 Escape Pod — Choose Destination</h3>';
+        html += '<p style="color:#aaa;">Warning: You will lose all cargo! Your ship will be destroyed.</p>';
+        html += '<div style="max-height:300px;overflow-y:auto;">';
+        for (var i = 0; i < locs.length; i++) {
+            var loc = locs[i];
+            if (!loc.dockable) continue;
+            var ship = Ship.getShip();
+            var dist = Math.sqrt((loc.x - ship.x) * (loc.x - ship.x) + (loc.y - ship.y) * (loc.y - ship.y));
+            html += '<button onclick="UI._activateEscapePod(\'' + loc.id + '\')" style="display:block;width:100%;margin:4px 0;padding:8px;background:#333;color:#eee;border:1px solid #666;cursor:pointer;text-align:left;font-family:monospace;">';
+            html += loc.name + ' <span style="color:#888;">(' + Math.round(dist) + ' units away)</span>';
+            html += '</button>';
+        }
+        html += '</div>';
+        html += '<button onclick="UI.closePanel()" style="margin-top:10px;padding:6px 16px;background:#555;color:#eee;border:1px solid #777;cursor:pointer;">Cancel</button>';
+        html += '</div>';
+        _elements.panelTitle.textContent = 'Escape Pod';
+        _elements.panel.innerHTML = html;
+        _elements.panelContainer.style.display = 'block';
+        _elements.overlay.style.display = 'block';
+    }
+
+    function _activateEscapePod(destId) {
+        closePanel();
+        Ship.activateEscapePod(destId);
+    }
+
+    function _updateEscapePodUI() {
+        var ejectBtn = document.getElementById('btnEject');
+        var podStatus = document.getElementById('escapePodStatus');
+        var hailBtn = document.getElementById('btnHail');
+        if (!ejectBtn) return;
+
+        if (Ship.isInEscapePod && Ship.isInEscapePod()) {
+            ejectBtn.style.display = 'none';
+            var dest = Ship.getEscapePodDest();
+            podStatus.textContent = 'IN ESCAPE POD — heading to ' + (dest ? dest.name : 'Unknown');
+            podStatus.style.display = 'block';
+            hailBtn.style.display = 'block';
+        } else if (Ship.hasEscapePod && Ship.hasEscapePod() && !Ship.getShip().docked && !Engine.isGameOver()) {
+            ejectBtn.style.display = 'block';
+            podStatus.style.display = 'none';
+            hailBtn.style.display = 'none';
+        } else {
+            ejectBtn.style.display = 'none';
+            podStatus.style.display = 'none';
+            hailBtn.style.display = 'none';
+        }
+    }
+
     return {
         init: init,
         wireEvents: wireEvents,
@@ -3768,6 +3856,7 @@ var UI = (function () {
         _startPeaceTalk: _startPeaceTalk,
         _buildStation: _buildStation,
         _closeShipEditor: _closeShipEditor,
+        _activateEscapePod: _activateEscapePod,
         _startDrag: _startDrag,
         _selectBlockAndDetail: _selectBlockAndDetail,
         _showMissionTracker: _showMissionTracker,

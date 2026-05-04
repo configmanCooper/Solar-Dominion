@@ -1249,10 +1249,11 @@ var Render = (function () {
                     victory.type === 'war_earth' ? 'Earth wins the war!' : 'Mars wins the war!';
                 _ctx.fillText(vType, Config.VIEWPORT_W / 2, Config.VIEWPORT_H / 2 + 20);
             } else {
-                _ctx.fillText('DESTROYED', Config.VIEWPORT_W / 2, Config.VIEWPORT_H / 2 - 20);
+                _ctx.fillText('GAME OVER', Config.VIEWPORT_W / 2, Config.VIEWPORT_H / 2 - 20);
                 _ctx.font = '16px monospace';
                 _ctx.fillStyle = '#ffffff';
-                _ctx.fillText('Press R to respawn (10% credit penalty)', Config.VIEWPORT_W / 2, Config.VIEWPORT_H / 2 + 20);
+                _ctx.fillText('Your ship has been destroyed.', Config.VIEWPORT_W / 2, Config.VIEWPORT_H / 2 + 15);
+                _ctx.fillText('Press N for New Game or L to Load Save', Config.VIEWPORT_W / 2, Config.VIEWPORT_H / 2 + 40);
             }
         }
 

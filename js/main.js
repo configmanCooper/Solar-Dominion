@@ -37,10 +37,24 @@ var Main = (function () {
             }
         });
 
-        // Death respawn
+        // Game over — new game or load save
         window.addEventListener('keydown', function (e) {
-            if (e.code === 'KeyR' && Engine.isGameOver() && !Diplomacy.checkVictory().victory) {
-                Engine.resetAfterDeath();
+            if (Engine.isGameOver() && !Diplomacy.checkVictory().victory) {
+                if (e.code === 'KeyN') {
+                    _newGame();
+                } else if (e.code === 'KeyL') {
+                    var saved = Save.load('slot_1');
+                    if (saved) {
+                        document.getElementById('titleScreen').style.display = 'none';
+                        document.getElementById('gameContainer').style.display = 'block';
+                        Events.clear();
+                        Engine.init();
+                        UI.wireEvents();
+                        Save.load('slot_1');
+                        _state = 'playing';
+                        _startLoops();
+                    }
+                }
             }
         });
     }

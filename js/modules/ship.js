@@ -7,6 +7,10 @@ var Ship = (function () {
 
     var _ship = null;
     var _activeWeaponIdx = 0;
+    var _escapePodActive = false;
+    var _escapePodDest = null;
+    var _escapePodHailing = false;
+    var _lastHailTime = 0;
 
     function _defaultShip() {
         // Build starter grid from moon_patrol template
@@ -261,9 +265,11 @@ var Ship = (function () {
         Events.emit('ship_undocked', {});
     }
 
-    function takeDamage(amount, type) {
+    function takeDamage(amount, type, projAngle) {
         // God mode invincibility
         if (_ship._invincible) return;
+        // Already in escape pod — ignore damage
+        if (_escapePodActive) return;
         // Global shield absorbs first
         if (_ship.shieldHp > 0) {
             var shieldDmg = Math.min(_ship.shieldHp, amount * 0.7);
@@ -274,7 +280,7 @@ var Ship = (function () {
         if (amount <= 0) return;
 
         // Locational damage: pick a cell to hit
-        var hitPos = ShipGrid.hitCell(_ship.grid, 0, _ship.angle);
+        var hitPos = ShipGrid.hitCell(_ship.grid, projAngle || 0, _ship.angle);
         if (hitPos) {
             var result = ShipGrid.damageBlock(_ship.grid, hitPos.r, hitPos.c, amount);
             _recalcStats();
@@ -362,10 +368,125 @@ var Ship = (function () {
         return _attackTarget;
     }
 
+    function hasEscapePod() {
+        if (!_ship.grid || !_ship.grid.cells) return false;
+        for (var r = 0; r < _ship.grid.h; r++) {
+            for (var c = 0; c < _ship.grid.w; c++) {
+                var cell = _ship.grid.cells[r][c];
+                if (cell && cell.type === 'escape_pod' && cell.hp > 0) return true;
+            }
+        }
+        return false;
+    }
+
+    function isInEscapePod() { return _escapePodActive; }
+    function getEscapePodDest() { return _escapePodDest; }
+
+    function activateEscapePod(destId) {
+        if (!hasEscapePod() || _escapePodActive) return false;
+        var dest = World.getLocation(destId);
+        if (!dest || !dest.dockable) return false;
+
+        _escapePodActive = true;
+        _escapePodDest = { id: destId, x: dest.x, y: dest.y, name: dest.name };
+        // Drop all cargo
+        var inv = _ship.inventory;
+        for (var key in inv) { inv[key] = 0; }
+        // Ship becomes a tiny escape pod
+        _ship.maxHp = 10;
+        _ship.hp = 10;
+        _ship.maxShieldHp = 0;
+        _ship.shieldHp = 0;
+        _ship.maxSpeed = 0.3;
+        _ship.grid = null;
+        _ship.vx = 0;
+        _ship.vy = 0;
+
+        Events.emit('escape_pod_activated', { destination: dest.name });
+        return true;
+    }
+
+    function hailNearbyShip() {
+        if (!_escapePodActive) return { success: false, message: 'Not in escape pod.' };
+        var now = Date.now();
+        if (now - _lastHailTime < 30000) {
+            return { success: false, message: 'Hail systems recharging. Wait before trying again.' };
+        }
+        _lastHailTime = now;
+
+        var npcs = World.getNPCs();
+        var nearby = [];
+        for (var i = 0; i < npcs.length; i++) {
+            var n = npcs[i];
+            if (n.dead || n.hostile) continue;
+            if (Factions.isHostile(n.faction)) continue;
+            var dx = n.x - _ship.x, dy = n.y - _ship.y;
+            if (dx * dx + dy * dy < 500 * 500) {
+                nearby.push(n);
+            }
+        }
+
+        if (nearby.length === 0) {
+            return { success: false, message: 'No friendly ships nearby to hail.' };
+        }
+
+        if (Math.random() < 0.4) {
+            // They accept — move player to destination
+            if (_escapePodDest) {
+                var dest = World.getLocation(_escapePodDest.id);
+                if (dest) {
+                    _ship.x = dest.x;
+                    _ship.y = dest.y;
+                    _ship.docked = true;
+                    _ship.dockedAt = _escapePodDest.id;
+                    _escapePodActive = false;
+                    _escapePodDest = null;
+                    Events.emit('escape_pod_arrived', { location: dest.name });
+                    return { success: true, message: 'A passing ship gave you a ride!' };
+                }
+            }
+        }
+
+        var declines = [
+            '"Sorry, we\'re on a tight schedule."',
+            '"Can\'t stop now, good luck out there."',
+            '"Negative, we have our own problems."',
+            '"We\'d help but our cargo bay is full."',
+            '"Not our problem, pilot. Stay safe."'
+        ];
+        return { success: false, message: declines[Math.floor(Math.random() * declines.length)] };
+    }
+
     function handleInput() {
         if (_ship.docked) {
             if (Input.justPressed('DOCK')) {
                 Events.emit('ship_docked', { locationId: _ship.dockedAt });
+            }
+            return;
+        }
+
+        // Escape pod auto-navigation
+        if (_escapePodActive) {
+            if (_escapePodDest) {
+                var dest = World.getLocation(_escapePodDest.id);
+                var ex = dest ? dest.x : _escapePodDest.x;
+                var ey = dest ? dest.y : _escapePodDest.y;
+                var edx = ex - _ship.x, edy = ey - _ship.y;
+                var edist = Math.sqrt(edx * edx + edy * edy);
+                if (edist < 30) {
+                    _escapePodActive = false;
+                    _escapePodDest = null;
+                    _ship.docked = true;
+                    _ship.dockedAt = dest ? dest.id : 'luna';
+                    _ship.x = ex;
+                    _ship.y = ey;
+                    Events.emit('escape_pod_arrived', { location: dest ? dest.name : 'Unknown' });
+                } else {
+                    _ship.angle = Math.atan2(edy, edx);
+                    var podSpeed = 3;
+                    _ship.x += Math.cos(_ship.angle) * podSpeed;
+                    _ship.y += Math.sin(_ship.angle) * podSpeed;
+                }
             }
             return;
         }
@@ -537,11 +658,13 @@ var Ship = (function () {
             x: _ship.x, y: _ship.y, angle: _ship.angle,
             vx: _ship.vx, vy: _ship.vy,
             docked: _ship.docked, dockedAt: _ship.dockedAt,
-            grid: ShipGrid.serializeGrid(_ship.grid),
+            grid: _ship.grid ? ShipGrid.serializeGrid(_ship.grid) : null,
             shieldHp: _ship.shieldHp,
             fireTimer: _ship.fireTimer,
             inventory: JSON.parse(JSON.stringify(_ship.inventory)),
-            activeWeaponIdx: _activeWeaponIdx
+            activeWeaponIdx: _activeWeaponIdx,
+            escapePodActive: _escapePodActive,
+            escapePodDest: _escapePodDest
         };
         return data;
     }
@@ -561,7 +684,17 @@ var Ship = (function () {
             maxSpeed: 0, acceleration: 0, cargo: 0, maxFuel: 0
         };
         _activeWeaponIdx = data.activeWeaponIdx || 0;
-        _recalcStats();
+        _escapePodActive = data.escapePodActive || false;
+        _escapePodDest = data.escapePodDest || null;
+        if (!_escapePodActive) {
+            _recalcStats();
+        } else {
+            _ship.maxHp = 10;
+            _ship.hp = 10;
+            _ship.maxShieldHp = 0;
+            _ship.maxSpeed = 0.3;
+            _ship.grid = null;
+        }
     }
 
     return {
@@ -597,6 +730,11 @@ var Ship = (function () {
         setAttackTarget: setAttackTarget,
         clearAttackTarget: clearAttackTarget,
         getAttackTarget: getAttackTarget,
+        hasEscapePod: hasEscapePod,
+        isInEscapePod: isInEscapePod,
+        getEscapePodDest: getEscapePodDest,
+        activateEscapePod: activateEscapePod,
+        hailNearbyShip: hailNearbyShip,
         serialize: serialize,
         deserialize: deserialize
     };

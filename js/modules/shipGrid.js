@@ -300,7 +300,7 @@ var ShipGrid = (function () {
             var dot = cr * dy + cc * dx;
             // Edge bonus: cells on the perimeter are more exposed
             var edgeBonus = _isEdgeCell(grid, cell.r, cell.c) ? 1.5 : 0.5;
-            var w = Math.max(0.1, dot + 2) * edgeBonus;
+            var w = Math.max(0.05, dot + 1.5) * edgeBonus * (dot > 0 ? 3.0 : 1.0);
             weighted.push({ r: cell.r, c: cell.c, w: w });
             totalWeight += w;
         }

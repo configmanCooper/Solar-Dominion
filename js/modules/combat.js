@@ -50,7 +50,7 @@ var Combat = (function () {
                 // Hit player
                 var dx2 = p.x - ship.x, dy2 = p.y - ship.y;
                 if (dx2 * dx2 + dy2 * dy2 < 400) {
-                    Ship.takeDamage(p.damage, p.type);
+                    Ship.takeDamage(p.damage, p.type, p.angle);
                     projectiles.splice(i, 1);
                     _log('Hit! ' + p.damage + ' ' + p.type + ' damage taken');
                     continue;
@@ -163,7 +163,7 @@ var Combat = (function () {
             if (collDist < 18) {
                 // Collision! Damage both ships
                 var collisionDmg = 8 + Math.random() * 7;
-                Ship.takeDamage(collisionDmg, 'kinetic');
+                Ship.takeDamage(collisionDmg, 'kinetic', Math.atan2(collDy, collDx));
                 _damageNPC(cn, collisionDmg, 'kinetic', true);
                 // Push apart
                 var pushAngle = Math.atan2(collDy, collDx);
