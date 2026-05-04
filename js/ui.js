@@ -10,6 +10,10 @@ var UI = (function () {
     var _currentPanel = null;
     var _toasts = [];
     var _storyQueue = [];
+    var _godMode = false;
+    var _godSpeedBonus = 0;
+    var _cheatBuffer = '';
+    var _cheatTimeout = null;
 
     function init() {
         _elements = {
@@ -59,6 +63,21 @@ var UI = (function () {
         // Listen for speed/pause changes to update button states
         Events.on('speed_changed', function () { _updateSpeedButtons(); });
         Events.on('pause_changed', function () { _updateSpeedButtons(); });
+
+        // Cheat code listener: type "solar" to toggle god mode
+        window.addEventListener('keydown', function (e) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            var ch = e.key.toLowerCase();
+            if (ch.length === 1 && ch >= 'a' && ch <= 'z') {
+                _cheatBuffer += ch;
+                if (_cheatTimeout) clearTimeout(_cheatTimeout);
+                _cheatTimeout = setTimeout(function () { _cheatBuffer = ''; }, 2000);
+                if (_cheatBuffer.indexOf('solar') !== -1) {
+                    _cheatBuffer = '';
+                    _toggleGodMode();
+                }
+            }
+        });
 
         wireEvents();
 
@@ -2834,6 +2853,151 @@ var UI = (function () {
         }
     }
 
+    // ── God Mode ──────────────────────────────────────────────
+    function _toggleGodMode() {
+        _godMode = !_godMode;
+        if (_godMode) {
+            showToast('☀️ GOD MODE ACTIVATED — Type "solar" again to deactivate', 'success');
+            _showGodPanel();
+        } else {
+            showToast('God mode deactivated', 'info');
+            _godSpeedBonus = 0;
+            var ship = Ship.getShip();
+            if (ship) ship._invincible = false;
+            var godEl = document.getElementById('godModePanel');
+            if (godEl) godEl.remove();
+        }
+    }
+
+    function _showGodPanel() {
+        var existing = document.getElementById('godModePanel');
+        if (existing) existing.remove();
+
+        var panel = document.createElement('div');
+        panel.id = 'godModePanel';
+        panel.style.cssText = 'position:fixed;top:60px;right:10px;background:rgba(20,10,40,0.95);border:2px solid #ffaa00;border-radius:8px;padding:12px;color:#fff;font-size:13px;z-index:10000;min-width:220px;font-family:monospace;';
+        _updateGodPanelContent(panel);
+        document.body.appendChild(panel);
+
+        // Auto-refresh god panel every second
+        if (window._godPanelInterval) clearInterval(window._godPanelInterval);
+        window._godPanelInterval = setInterval(function () {
+            if (!_godMode) { clearInterval(window._godPanelInterval); return; }
+            _updateGodPanelContent();
+        }, 1000);
+    }
+
+    function _updateGodPanelContent(panel) {
+        if (!panel) panel = document.getElementById('godModePanel');
+        if (!panel) return;
+        var ship = Ship.getShip();
+        var stats = ship.grid ? ship.grid.stats : {};
+        var fuelUsed = Ship.getFuelUsed();
+        var maxFuel = ship.maxFuel || 0;
+
+        var html = '<div style="text-align:center;color:#ffaa00;font-weight:bold;margin-bottom:8px;">☀️ GOD MODE</div>';
+
+        // Speed
+        html += '<div style="margin-bottom:8px;border-bottom:1px solid #555;padding-bottom:6px;">';
+        html += '<div style="color:#88ccff;">🚀 Speed Bonus: +' + _godSpeedBonus + '</div>';
+        html += '<div style="color:#aaa;font-size:11px;">Base: ' + (Ship.getSpeed()).toFixed(2) + ' | +God: ' + _godSpeedBonus + '</div>';
+        html += '<button onclick="UI._godSpeed(1)" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#88ff88;border:1px solid #88ff88;border-radius:4px;">+1 Speed</button>';
+        html += '<button onclick="UI._godSpeed(5)" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#88ff88;border:1px solid #88ff88;border-radius:4px;">+5 Speed</button>';
+        html += '<button onclick="UI._godSpeed(-1)" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#ff8888;border:1px solid #ff8888;border-radius:4px;">-1</button>';
+        html += '<button onclick="UI._godSpeed(0)" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#ffaa44;border:1px solid #ffaa44;border-radius:4px;">Reset</button>';
+        html += '</div>';
+
+        // Fuel
+        html += '<div style="margin-bottom:8px;border-bottom:1px solid #555;padding-bottom:6px;">';
+        html += '<div style="color:#aa8844;">⛽ Fuel: ' + fuelUsed + '/' + maxFuel + '</div>';
+        html += '<button onclick="UI._godFillFuel()" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#ffcc44;border:1px solid #ffcc44;border-radius:4px;">Fill Fuel</button>';
+        html += '</div>';
+
+        // Credits
+        html += '<div style="margin-bottom:8px;border-bottom:1px solid #555;padding-bottom:6px;">';
+        html += '<div style="color:#88ff88;">💰 Credits: ' + Economy.getCredits().toLocaleString() + '</div>';
+        html += '<button onclick="UI._godCredits(10000)" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#88ff88;border:1px solid #88ff88;border-radius:4px;">+10K</button>';
+        html += '<button onclick="UI._godCredits(100000)" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#88ff88;border:1px solid #88ff88;border-radius:4px;">+100K</button>';
+        html += '<button onclick="UI._godCredits(1000000)" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#88ff88;border:1px solid #88ff88;border-radius:4px;">+1M</button>';
+        html += '</div>';
+
+        // Health
+        html += '<div style="margin-bottom:8px;border-bottom:1px solid #555;padding-bottom:6px;">';
+        html += '<div style="color:#ff4444;">❤️ HP: ' + Math.round(ship.hp) + '/' + ship.maxHp + ' | Shield: ' + Math.round(ship.shieldHp) + '/' + ship.maxShieldHp + '</div>';
+        html += '<button onclick="UI._godHeal()" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#ff8888;border:1px solid #ff8888;border-radius:4px;">Full Heal</button>';
+        html += '<button onclick="UI._godInvincible()" style="margin:3px;padding:4px 10px;cursor:pointer;background:#334;color:#ff44ff;border:1px solid #ff44ff;border-radius:4px;">' + (ship._invincible ? '🛡️ INVINCIBLE' : 'Invincible OFF') + '</button>';
+        html += '</div>';
+
+        // Reputation
+        html += '<div style="margin-bottom:6px;">';
+        html += '<div style="color:#ccccff;">🤝 Reputation</div>';
+        html += '<button onclick="UI._godRep(\'earth\',20)" style="margin:2px;padding:3px 8px;cursor:pointer;background:#334;color:#4488ff;border:1px solid #4488ff;border-radius:3px;font-size:11px;">Earth +20</button>';
+        html += '<button onclick="UI._godRep(\'mars\',20)" style="margin:2px;padding:3px 8px;cursor:pointer;background:#334;color:#ff4444;border:1px solid #ff4444;border-radius:3px;font-size:11px;">Mars +20</button>';
+        html += '<button onclick="UI._godRep(\'moon\',20)" style="margin:2px;padding:3px 8px;cursor:pointer;background:#334;color:#cccccc;border:1px solid #cccccc;border-radius:3px;font-size:11px;">Moon +20</button>';
+        html += '</div>';
+
+        panel.innerHTML = html;
+    }
+
+    function _godSpeed(amount) {
+        if (amount === 0) {
+            _godSpeedBonus = 0;
+        } else {
+            _godSpeedBonus = Math.max(0, _godSpeedBonus + amount);
+        }
+        _updateGodPanelContent();
+    }
+
+    function _godFillFuel() {
+        var ship = Ship.getShip();
+        var stats = ship.grid ? ship.grid.stats : {};
+        if (stats.fuelTypes) {
+            for (var ft in stats.fuelTypes) {
+                ship.inventory[ft] = ship.maxFuel || 180;
+            }
+        }
+        showToast('⛽ Fuel filled to max!', 'success');
+        _updateGodPanelContent();
+    }
+
+    function _godCredits(amount) {
+        Economy.addCredits(amount);
+        showToast('💰 +' + amount.toLocaleString() + ' credits', 'success');
+        _updateGodPanelContent();
+    }
+
+    function _godHeal() {
+        var ship = Ship.getShip();
+        ship.hp = ship.maxHp;
+        ship.shieldHp = ship.maxShieldHp;
+        if (ship.grid && ship.grid.cells) {
+            for (var r = 0; r < ship.grid.cells.length; r++) {
+                for (var c = 0; c < ship.grid.cells[r].length; c++) {
+                    var cell = ship.grid.cells[r][c];
+                    if (cell && cell.type) cell.hp = cell.maxHp;
+                }
+            }
+        }
+        showToast('❤️ Fully healed!', 'success');
+        _updateGodPanelContent();
+    }
+
+    function _godInvincible() {
+        var ship = Ship.getShip();
+        ship._invincible = !ship._invincible;
+        showToast(ship._invincible ? '🛡️ Invincible ON' : '🛡️ Invincible OFF', 'info');
+        _updateGodPanelContent();
+    }
+
+    function _godRep(faction, amount) {
+        Factions.changeRep(faction, amount);
+        showToast('🤝 ' + faction + ' rep +' + amount, 'success');
+        _updateGodPanelContent();
+    }
+
+    function isGodMode() { return _godMode; }
+    function getGodSpeedBonus() { return _godSpeedBonus; }
+
     return {
         init: init,
         wireEvents: wireEvents,
@@ -2872,6 +3036,15 @@ var UI = (function () {
         _showMissionDetail: _showMissionDetail,
         _trackMission: _trackMission,
         _untrackMission: _untrackMission,
-        _abandonMission: _abandonMission
+        _abandonMission: _abandonMission,
+        // God mode
+        isGodMode: isGodMode,
+        getGodSpeedBonus: getGodSpeedBonus,
+        _godSpeed: _godSpeed,
+        _godFillFuel: _godFillFuel,
+        _godCredits: _godCredits,
+        _godHeal: _godHeal,
+        _godInvincible: _godInvincible,
+        _godRep: _godRep
     };
 })();

@@ -262,6 +262,8 @@ var Ship = (function () {
     }
 
     function takeDamage(amount, type) {
+        // God mode invincibility
+        if (_ship._invincible) return;
         // Global shield absorbs first
         if (_ship.shieldHp > 0) {
             var shieldDmg = Math.min(_ship.shieldHp, amount * 0.7);
@@ -355,6 +357,10 @@ var Ship = (function () {
         }
 
         var maxSpd = getSpeed();
+        // Apply god mode speed bonus
+        if (typeof UI !== 'undefined' && UI.isGodMode && UI.isGodMode()) {
+            maxSpd += UI.getGodSpeedBonus();
+        }
         var accel = _ship.acceleration * Config.BASE_SPEED * 0.5;
         if (accel < 0.3) accel = 0.3; // minimum acceleration so ship always moves
         var moving = false;
