@@ -36,7 +36,34 @@ var UI = (function () {
         document.getElementById('btnDiplomacy').addEventListener('click', function () { _togglePanel('diplomacy'); });
         document.getElementById('btnLog').addEventListener('click', function () { _togglePanel('log'); });
 
+        // Speed control buttons
+        var speedButtons = [
+            { id: 'btnPause', speed: 0 },
+            { id: 'btnSpeed1', speed: 1 },
+            { id: 'btnSpeed2', speed: 2 },
+            { id: 'btnSpeed4', speed: 4 },
+            { id: 'btnSpeed10', speed: 10 }
+        ];
+        speedButtons.forEach(function (btn) {
+            document.getElementById(btn.id).addEventListener('click', function () {
+                if (btn.speed === 0) {
+                    if (!Engine.isPaused()) Engine.togglePause();
+                } else {
+                    if (Engine.isPaused()) Engine.togglePause();
+                    Engine.setGameSpeed(btn.speed);
+                }
+                _updateSpeedButtons();
+            });
+        });
+
+        // Listen for speed/pause changes to update button states
+        Events.on('speed_changed', function () { _updateSpeedButtons(); });
+        Events.on('pause_changed', function () { _updateSpeedButtons(); });
+
         wireEvents();
+
+        // Set initial speed button state (game starts unpaused at 1x)
+        _updateSpeedButtons();
     }
 
     function wireEvents() {
@@ -2758,6 +2785,21 @@ var UI = (function () {
 
     function openSub(panelId) {
         _showPanel(panelId);
+    }
+
+    function _updateSpeedButtons() {
+        var paused = (typeof Engine !== 'undefined' && Engine.isPaused) ? Engine.isPaused() : false;
+        var speed = (typeof Engine !== 'undefined' && Engine.getGameSpeed) ? Engine.getGameSpeed() : 1;
+        var map = { btnPause: 0, btnSpeed1: 1, btnSpeed2: 2, btnSpeed4: 4, btnSpeed10: 10 };
+        for (var id in map) {
+            var el = document.getElementById(id);
+            if (!el) continue;
+            if (id === 'btnPause') {
+                el.classList.toggle('active', paused);
+            } else {
+                el.classList.toggle('active', !paused && speed === map[id]);
+            }
+        }
     }
 
     return {

@@ -124,6 +124,25 @@ body {
     border-color: #5577aa;
 }
 
+.nav-separator {
+    width: 1px;
+    background: #334466;
+    margin: 0 4px;
+    align-self: stretch;
+}
+
+.speed-btn {
+    min-width: 32px;
+    text-align: center;
+    padding: 4px 6px;
+}
+
+.speed-btn.active {
+    background: rgba(0, 255, 136, 0.2);
+    color: #00ff88;
+    border-color: #00ff88;
+}
+
 /* ── UI Overlay (click-blocker behind panels) ──────────────── */
 #uiOverlay {
     display: none;

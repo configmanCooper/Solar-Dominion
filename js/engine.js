@@ -115,7 +115,7 @@ var Engine = (function () {
     }
 
     function setGameSpeed(speed) {
-        _gameSpeed = Math.max(0.5, Math.min(3, speed));
+        _gameSpeed = Math.max(0.5, Math.min(10, speed));
         Events.emit('speed_changed', { speed: _gameSpeed });
     }
 
