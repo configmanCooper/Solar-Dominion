@@ -109,34 +109,34 @@ var World = (function () {
             return { x: cx + Math.cos(a) * r, y: cy + Math.sin(a) * r };
         }
 
-        // ── Earth ships ──
-        // Patrol (defense) — 50
-        for (var i = 0; i < 50; i++) {
+        // ── Earth ships (50% more than Mars — more resourceful) ──
+        // Patrol (defense) — 75
+        for (var i = 0; i < 75; i++) {
             var ep = spread(ex, ey, 800);
             _spawnNPC('earth_patrol_' + i, Config.FACTION.EARTH, 'patrol', ep.x, ep.y);
         }
-        // Battle (offense) — 25 (Mars gets slightly more)
-        for (var ib = 0; ib < 25; ib++) {
+        // Battle (offense) — 38
+        for (var ib = 0; ib < 38; ib++) {
             var eb = spread(ex, ey, 900);
             _spawnNPC('earth_battle_' + ib, Config.FACTION.EARTH, 'battle', eb.x, eb.y);
         }
-        // Diplomacy — 12 (Earth gets slightly more, they lean diplomatic)
-        for (var id = 0; id < 12; id++) {
+        // Diplomacy — 18 (Earth leans diplomatic)
+        for (var id = 0; id < 18; id++) {
             var ed = spread(ex, ey, 1000);
             _spawnNPC('earth_diplo_' + id, Config.FACTION.EARTH, 'diplomacy', ed.x, ed.y);
         }
-        // Research — 6 (Mars gets more)
-        for (var ir = 0; ir < 6; ir++) {
+        // Research — 9
+        for (var ir = 0; ir < 9; ir++) {
             var er = spread(ex, ey, 700);
             _spawnNPC('earth_research_' + ir, Config.FACTION.EARTH, 'research', er.x, er.y);
         }
-        // Mining — 10
-        for (var im = 0; im < 10; im++) {
+        // Mining — 15
+        for (var im = 0; im < 15; im++) {
             var em = spread(ex, ey, 1200);
             _spawnNPC('earth_miner_' + im, Config.FACTION.EARTH, 'mining', em.x, em.y);
         }
-        // Earth traders — 20
-        for (var et = 0; et < 20; et++) {
+        // Earth traders — 30
+        for (var et = 0; et < 30; et++) {
             var etpos = spread(ex, ey, 1200);
             _spawnNPC('earth_trader_' + et, Config.FACTION.EARTH, 'trade', etpos.x, etpos.y);
         }
@@ -652,29 +652,29 @@ var World = (function () {
         var mx = mars ? mars.x : Config.SUN_X, my = mars ? mars.y : Config.SUN_Y;
 
         // Spawn one ship per category per respawn cycle if below cap
-        if (counts.earthPatrol < Config.NPC_MAX_PATROLS)
+        if (counts.earthPatrol < Config.NPC_MAX_PATROLS_EARTH)
             _spawnNPC('earth_patrol_r' + (_nextId++), Config.FACTION.EARTH, 'patrol', ex + (Math.random() - 0.5) * 1600, ey + (Math.random() - 0.5) * 1600);
-        if (counts.marsPatrol < Config.NPC_MAX_PATROLS)
+        if (counts.marsPatrol < Config.NPC_MAX_PATROLS_MARS)
             _spawnNPC('mars_patrol_r' + (_nextId++), Config.FACTION.MARS, 'patrol', mx + (Math.random() - 0.5) * 1600, my + (Math.random() - 0.5) * 1600);
 
-        if (counts.earthBattle < Config.NPC_MAX_BATTLE)
+        if (counts.earthBattle < Config.NPC_MAX_BATTLE_EARTH)
             _spawnNPC('earth_battle_r' + (_nextId++), Config.FACTION.EARTH, 'battle', ex + (Math.random() - 0.5) * 1800, ey + (Math.random() - 0.5) * 1800);
-        if (counts.marsBattle < Config.NPC_MAX_BATTLE)
+        if (counts.marsBattle < Config.NPC_MAX_BATTLE_MARS)
             _spawnNPC('mars_battle_r' + (_nextId++), Config.FACTION.MARS, 'battle', mx + (Math.random() - 0.5) * 1800, my + (Math.random() - 0.5) * 1800);
 
-        if (counts.earthDiplo < Config.NPC_MAX_DIPLOMACY)
+        if (counts.earthDiplo < Config.NPC_MAX_DIPLOMACY_EARTH)
             _spawnNPC('earth_diplo_r' + (_nextId++), Config.FACTION.EARTH, 'diplomacy', ex + (Math.random() - 0.5) * 2000, ey + (Math.random() - 0.5) * 2000);
-        if (counts.marsDiplo < Config.NPC_MAX_DIPLOMACY)
+        if (counts.marsDiplo < Config.NPC_MAX_DIPLOMACY_MARS)
             _spawnNPC('mars_diplo_r' + (_nextId++), Config.FACTION.MARS, 'diplomacy', mx + (Math.random() - 0.5) * 2000, my + (Math.random() - 0.5) * 2000);
 
-        if (counts.earthResearch < Config.NPC_MAX_RESEARCH)
+        if (counts.earthResearch < Config.NPC_MAX_RESEARCH_EARTH)
             _spawnNPC('earth_research_r' + (_nextId++), Config.FACTION.EARTH, 'research', ex + (Math.random() - 0.5) * 1400, ey + (Math.random() - 0.5) * 1400);
-        if (counts.marsResearch < Config.NPC_MAX_RESEARCH)
+        if (counts.marsResearch < Config.NPC_MAX_RESEARCH_MARS)
             _spawnNPC('mars_research_r' + (_nextId++), Config.FACTION.MARS, 'research', mx + (Math.random() - 0.5) * 1400, my + (Math.random() - 0.5) * 1400);
 
-        if (counts.earthMiner < Config.NPC_MAX_MINERS)
+        if (counts.earthMiner < Config.NPC_MAX_MINERS_EARTH)
             _spawnNPC('earth_miner_r' + (_nextId++), Config.FACTION.EARTH, 'mining', ex + (Math.random() - 0.5) * 2400, ey + (Math.random() - 0.5) * 2400);
-        if (counts.marsMiner < Config.NPC_MAX_MINERS)
+        if (counts.marsMiner < Config.NPC_MAX_MINERS_MARS)
             _spawnNPC('mars_miner_r' + (_nextId++), Config.FACTION.MARS, 'mining', mx + (Math.random() - 0.5) * 2400, my + (Math.random() - 0.5) * 2400);
 
         // Independent traders
@@ -685,7 +685,7 @@ var World = (function () {
                 ey + (my - ey) * t + (Math.random() - 0.5) * 2000);
         }
         // Earth faction traders
-        if (counts.earthTrader < 20)
+        if (counts.earthTrader < 30)
             _spawnNPC('earth_trader_r' + (_nextId++), Config.FACTION.EARTH, 'trade', ex + (Math.random() - 0.5) * 1200, ey + (Math.random() - 0.5) * 1200);
         // Mars faction traders
         if (counts.marsTrader < 20)

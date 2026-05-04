@@ -104,9 +104,30 @@ var Factions = (function () {
             // AI strategy system
             warHawk: 30,        // 0-100, how aggressive (Earth starts diplomatic)
             diplomacy: 70,      // 0-100, how diplomatic
-            activeStrategies: [], // current active strategy IDs (up to 3)
-            strategyScores: {},   // goalMetric → cumulative score
-            strategyHistory: []   // past strategies for evaluation
+            activeStrategies: [],
+            strategyScores: {},
+            strategyHistory: [],
+            // Internal politics — Earth is deeply divided
+            politics: {
+                unity: 40,          // 0-100, how unified (Earth starts low — very divided)
+                factions: [
+                    { id: 'hawks', name: 'War Hawks Coalition', support: 25,
+                      desc: 'Military hardliners demanding Mars unconditional surrender.',
+                      warBias: 20, diploBias: -10, econBias: -5 },
+                    { id: 'doves', name: 'Peace & Prosperity Party', support: 30,
+                      desc: 'Diplomats and merchants pushing for ceasefire and trade.',
+                      warBias: -15, diploBias: 20, econBias: 10 },
+                    { id: 'isolationists', name: 'Earth First Movement', support: 20,
+                      desc: 'Want to abandon Mars operations and invest on Earth.',
+                      warBias: -5, diploBias: -5, econBias: 15 },
+                    { id: 'expansionists', name: 'Colonial Expansion Bureau', support: 25,
+                      desc: 'Pragmatic expansionists seeking to control all colonies.',
+                      warBias: 10, diploBias: 5, econBias: 5 }
+                ],
+                crisisTimer: 0,     // ticks until next potential political crisis
+                crisisActive: null, // current political crisis event
+                coupRisk: 0         // 0-100, risk of leadership change
+            }
         };
         _factions[Config.FACTION.MARS] = {
             id: Config.FACTION.MARS,
@@ -121,7 +142,25 @@ var Factions = (function () {
             diplomacy: 35,
             activeStrategies: [],
             strategyScores: {},
-            strategyHistory: []
+            strategyHistory: [],
+            // Internal politics — Mars is more unified but still has tensions
+            politics: {
+                unity: 70,          // Mars is more cohesive
+                factions: [
+                    { id: 'technocrats', name: 'Technocrat Council', support: 40,
+                      desc: 'Scientists and engineers running Mars. Favor tech superiority.',
+                      warBias: 5, diploBias: 0, econBias: 5 },
+                    { id: 'militants', name: 'Red Legion', support: 35,
+                      desc: 'Military veterans wanting to strike Earth decisively.',
+                      warBias: 20, diploBias: -10, econBias: -5 },
+                    { id: 'reformists', name: 'New Mars Coalition', support: 25,
+                      desc: 'Younger generation seeking peaceful independence.',
+                      warBias: -10, diploBias: 15, econBias: 5 }
+                ],
+                crisisTimer: 0,
+                crisisActive: null,
+                coupRisk: 0
+            }
         };
         _factions[Config.FACTION.MOON] = {
             id: Config.FACTION.MOON,
@@ -462,7 +501,11 @@ var Factions = (function () {
         var faction = _factions[fId];
         if (faction && faction.strengths && faction.strengths.shipCost) {
             bt.timer = Math.round(bt.timer * (0.5 + faction.strengths.shipCost * 0.5));
-            // Dampened: 0.8 → 0.9 multiplier instead of raw 0.8
+        }
+        // Internal politics: low unity slows building
+        var buildEff = (faction && faction._buildEfficiency) || 1.0;
+        if (buildEff < 1.0) {
+            bt.timer = Math.round(bt.timer / buildEff);
         }
         bt.originalBuildTime = bt.timer;
         Events.emit('faction_ship_building', {
@@ -531,6 +574,208 @@ var Factions = (function () {
         };
     }
 
+    // ── Internal Politics System ──────────────────────────────
+    var POLITICS_TICK_INTERVAL = 300; // every 30 seconds
+    var _politicsTimer = 0;
+
+    // Political crisis events that can affect a faction
+    var CRISIS_TYPES = [
+        { id: 'budget_dispute', name: 'Budget Dispute', desc: 'Internal factions arguing over military vs civilian spending.',
+          effects: { economy: -3, unity: -5 }, duration: 600, warBias: 0 },
+        { id: 'peace_protests', name: 'Peace Protests', desc: 'Massive anti-war protests erupting across the homeland.',
+          effects: { warHawk: -8, diplomacy: 5, unity: -8 }, duration: 900, warBias: -10 },
+        { id: 'war_rally', name: 'War Rally', desc: 'Patriotic fervor sweeping the population after a perceived enemy provocation.',
+          effects: { warHawk: 10, diplomacy: -5, unity: 8, militaryPower: 3 }, duration: 600, warBias: 15 },
+        { id: 'corruption_scandal', name: 'Corruption Scandal', desc: 'High-ranking officials caught embezzling military funds.',
+          effects: { economy: -5, unity: -10, militaryPower: -2 }, duration: 1200, warBias: 0 },
+        { id: 'supply_shortage', name: 'Supply Chain Crisis', desc: 'Critical supply lines disrupted by internal disagreements.',
+          effects: { economy: -8, militaryPower: -3 }, duration: 900, warBias: 0 },
+        { id: 'tech_breakthrough', name: 'Tech Breakthrough', desc: 'Scientists achieve a major advance, boosting national morale.',
+          effects: { economy: 3, unity: 5, militaryPower: 2 }, duration: 300, warBias: 0 },
+        { id: 'election_crisis', name: 'Leadership Election', desc: 'A contentious election splits the population.',
+          effects: { unity: -15 }, duration: 1500, warBias: 0, earthOnly: true },
+        { id: 'secession_threat', name: 'Secession Threat', desc: 'A major city-state threatens to declare independence.',
+          effects: { unity: -20, economy: -5, militaryPower: -5 }, duration: 1800, warBias: 0, earthOnly: true },
+        { id: 'refugee_crisis', name: 'Refugee Crisis', desc: 'War refugees straining civilian infrastructure.',
+          effects: { economy: -4, unity: -6, diplomacy: 3 }, duration: 900, warBias: -5 },
+        { id: 'military_purge', name: 'Military Purge', desc: 'Leadership cracks down on dissenting officers.',
+          effects: { unity: 10, militaryPower: -8, warHawk: 5 }, duration: 600, warBias: 5, marsOnly: true },
+        { id: 'propaganda_push', name: 'Propaganda Campaign', desc: 'State media launches a coordinated messaging effort.',
+          effects: { unity: 8, warHawk: 3, diplomacy: -2 }, duration: 600, warBias: 5 },
+        { id: 'trade_embargo', name: 'Internal Trade Dispute', desc: 'Economic factions impose internal trade barriers.',
+          effects: { economy: -6, unity: -4 }, duration: 900, warBias: 0 },
+        { id: 'heroic_victory', name: 'Celebrated Victory', desc: 'A military victory boosts national pride tremendously.',
+          effects: { unity: 12, warHawk: 5, militaryPower: 3 }, duration: 300, warBias: 10 },
+        { id: 'war_fatigue', name: 'War Fatigue', desc: 'Population growing weary of prolonged conflict.',
+          effects: { warHawk: -6, diplomacy: 8, unity: -3, militaryPower: -2 }, duration: 1200, warBias: -8 },
+        { id: 'food_crisis', name: 'Food Production Crisis', desc: 'Agricultural output falling, civilian unrest growing.',
+          effects: { economy: -7, unity: -8 }, duration: 1200, warBias: 0, earthOnly: true },
+        { id: 'dome_failure', name: 'Habitat Dome Failure', desc: 'Critical life support failure diverts resources from war effort.',
+          effects: { economy: -5, unity: -6, militaryPower: -3 }, duration: 900, warBias: -5, marsOnly: true },
+        { id: 'defection', name: 'High-Profile Defection', desc: 'A prominent leader defects to the other side.',
+          effects: { unity: -12, diplomacy: -5, militaryPower: -2 }, duration: 600, warBias: 0 },
+        { id: 'alliance_proposal', name: 'Alliance Proposal', desc: 'A political faction proposes secret peace negotiations.',
+          effects: { diplomacy: 10, warHawk: -5, unity: -5 }, duration: 900, warBias: -10 }
+    ];
+
+    function _tickPolitics() {
+        _politicsTimer++;
+        if (_politicsTimer < POLITICS_TICK_INTERVAL) return;
+        _politicsTimer = 0;
+
+        _tickFactionPolitics(Config.FACTION.EARTH);
+        _tickFactionPolitics(Config.FACTION.MARS);
+    }
+
+    function _tickFactionPolitics(factionId) {
+        var faction = _factions[factionId];
+        if (!faction || !faction.politics) return;
+        var pol = faction.politics;
+        var isEarth = factionId === Config.FACTION.EARTH;
+
+        // ── Process active crisis ──
+        if (pol.crisisActive) {
+            pol.crisisActive.remaining--;
+            if (pol.crisisActive.remaining <= 0) {
+                Events.emit('political_crisis_ended', {
+                    faction: factionId,
+                    crisis: pol.crisisActive.id,
+                    name: pol.crisisActive.name
+                });
+                pol.crisisActive = null;
+            }
+        }
+
+        // ── Political faction support drift ──
+        var factions = pol.factions;
+        for (var i = 0; i < factions.length; i++) {
+            var pf = factions[i];
+            // Support shifts based on game state
+            var shift = 0;
+            if (pf.warBias > 0 && faction.militaryPower > (_factions[faction.enemy] || {}).militaryPower) {
+                shift += 0.5; // war hawks gain when winning
+            }
+            if (pf.warBias < 0 && faction.militaryPower < ((_factions[faction.enemy] || {}).militaryPower || 0)) {
+                shift += 0.8; // peace factions gain when losing
+            }
+            if (pf.econBias > 0 && faction.economy < 50) {
+                shift += 0.6; // economic factions gain during recession
+            }
+            // Random drift
+            shift += (Math.random() - 0.5) * 1.5;
+            pf.support = Math.max(5, Math.min(60, pf.support + shift));
+        }
+
+        // Normalize support to sum to 100
+        var total = 0;
+        for (var n = 0; n < factions.length; n++) total += factions[n].support;
+        for (var nn = 0; nn < factions.length; nn++) factions[nn].support = (factions[nn].support / total) * 100;
+
+        // ── Dominant faction influences policy ──
+        var dominant = factions[0];
+        for (var d = 1; d < factions.length; d++) {
+            if (factions[d].support > dominant.support) dominant = factions[d];
+        }
+        // Small nudge toward dominant faction's bias
+        faction.warHawk = Math.max(0, Math.min(100, faction.warHawk + dominant.warBias * 0.02));
+        faction.diplomacy = Math.max(0, Math.min(100, faction.diplomacy + dominant.diploBias * 0.02));
+
+        // ── Unity drift ──
+        // Support spread — more even = more divided
+        var maxSupport = 0, minSupport = 100;
+        for (var u = 0; u < factions.length; u++) {
+            if (factions[u].support > maxSupport) maxSupport = factions[u].support;
+            if (factions[u].support < minSupport) minSupport = factions[u].support;
+        }
+        var spread = maxSupport - minSupport;
+        if (spread < 15) {
+            // Very even — unity drops (deadlock)
+            pol.unity = Math.max(5, pol.unity - 0.3);
+        } else if (spread > 40) {
+            // Clear mandate — unity rises
+            pol.unity = Math.min(95, pol.unity + 0.2);
+        }
+
+        // Earth is inherently more divided (larger population, more diverse views)
+        if (isEarth) {
+            pol.unity = Math.max(5, pol.unity - 0.1);
+        }
+
+        // ── Unity effects on faction performance ──
+        var unityMod = pol.unity / 100;
+        // Low unity slows ship building (applied via efficiency multiplier)
+        faction._buildEfficiency = 0.5 + unityMod * 0.5; // 50-100% build speed
+
+        // ── Coup risk ──
+        pol.coupRisk = Math.max(0, 100 - pol.unity - faction.economy * 0.3);
+        if (isEarth) pol.coupRisk += 5; // Earth is more prone to upheaval
+
+        // ── Trigger new crisis ──
+        if (!pol.crisisActive) {
+            pol.crisisTimer++;
+            // Crisis chance: higher when unity is low
+            var crisisChance = (100 - pol.unity) / 500; // 0-0.2 per check
+            if (isEarth) crisisChance *= 1.5; // Earth has more frequent crises
+            // Minimum time between crises
+            if (pol.crisisTimer > 3 && Math.random() < crisisChance) {
+                _triggerCrisis(factionId);
+                pol.crisisTimer = 0;
+            }
+        }
+    }
+
+    function _triggerCrisis(factionId) {
+        var faction = _factions[factionId];
+        if (!faction || !faction.politics) return;
+        var isEarth = factionId === Config.FACTION.EARTH;
+
+        // Filter valid crises
+        var validCrises = [];
+        for (var i = 0; i < CRISIS_TYPES.length; i++) {
+            var c = CRISIS_TYPES[i];
+            if (c.earthOnly && !isEarth) continue;
+            if (c.marsOnly && isEarth) continue;
+            validCrises.push(c);
+        }
+        if (validCrises.length === 0) return;
+
+        var crisis = validCrises[Math.floor(Math.random() * validCrises.length)];
+
+        // Apply immediate effects
+        for (var key in crisis.effects) {
+            if (key === 'unity') {
+                faction.politics.unity = Math.max(5, Math.min(95, faction.politics.unity + crisis.effects[key]));
+            } else if (faction.hasOwnProperty(key)) {
+                faction[key] = Math.max(key === 'economy' ? 10 : key === 'militaryPower' ? 5 : 0,
+                    Math.min(100, faction[key] + crisis.effects[key]));
+            }
+        }
+
+        faction.politics.crisisActive = {
+            id: crisis.id,
+            name: crisis.name,
+            desc: crisis.desc,
+            remaining: crisis.duration,
+            totalDuration: crisis.duration,
+            effects: crisis.effects
+        };
+
+        Events.emit('political_crisis', {
+            faction: factionId,
+            factionName: faction.name,
+            crisis: crisis.id,
+            name: crisis.name,
+            desc: crisis.desc,
+            effects: crisis.effects
+        });
+    }
+
+    function getPolitics(factionId) {
+        var f = _factions[factionId];
+        if (!f || !f.politics) return null;
+        return f.politics;
+    }
+
     function tick() {
         // Earth tries to influence Moon, Mars tries to influence Ares Station
         var luna = World.getLocation('luna');
@@ -581,6 +826,9 @@ var Factions = (function () {
 
         // Faction ship building
         _tickBuild();
+
+        // Internal politics
+        _tickPolitics();
     }
 
     function serialize() {
@@ -644,6 +892,7 @@ var Factions = (function () {
         setLeaning: setLeaning,
         getActiveStrategies: getActiveStrategies,
         getStrategyMissionTypes: getStrategyMissionTypes,
+        getPolitics: getPolitics,
         getBuildState: getBuildState,
         tick: tick,
         serialize: serialize,

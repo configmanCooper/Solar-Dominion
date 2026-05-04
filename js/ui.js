@@ -136,6 +136,13 @@ var UI = (function () {
             var fName = (Factions.getFaction(data.faction) || {}).name || data.faction;
             showToast('⚙️ ' + fName + ' built: ' + data.shipName, 'info');
         });
+        Events.on('political_crisis', function (data) {
+            showToast('🏛️ ' + data.factionName + ': ' + data.name + ' — ' + data.desc, 'warning');
+        });
+        Events.on('political_crisis_ended', function (data) {
+            var fName = (Factions.getFaction(data.faction) || {}).name || data.faction;
+            showToast('🏛️ ' + fName + ': ' + data.name + ' crisis resolved', 'info');
+        });
 
         // Mining events
         Events.on('mining_started', function () {
@@ -2116,6 +2123,31 @@ var UI = (function () {
             html += '<div class="faction-row">';
             html += '<span class="faction-name" style="color:' + _getFactionColorCSS(fid) + '">' + f.name + '</span>';
             html += '<span class="faction-rep" style="color:' + color + '">' + rep + ' (' + standing + ')</span>';
+            html += '</div>';
+        }
+
+        // Internal politics overview
+        html += '<h3>🏛️ Internal Politics</h3>';
+        var polFactions = [Config.FACTION.EARTH, Config.FACTION.MARS];
+        for (var pi = 0; pi < polFactions.length; pi++) {
+            var pfid = polFactions[pi];
+            var pf = Factions.getFaction(pfid);
+            var pol = Factions.getPolitics(pfid);
+            if (!pf || !pol) continue;
+            var unityColor = pol.unity > 60 ? '#88ff88' : pol.unity > 35 ? '#ffaa44' : '#ff4444';
+            html += '<div style="margin-bottom:8px;">';
+            html += '<p style="color:' + _getFactionColorCSS(pfid) + ';margin-bottom:2px;"><b>' + pf.name + '</b> — Unity: <span style="color:' + unityColor + '">' + Math.round(pol.unity) + '%</span></p>';
+            // Show internal factions
+            for (var pfi = 0; pfi < pol.factions.length; pfi++) {
+                var ipf = pol.factions[pfi];
+                var barW = Math.round(ipf.support);
+                html += '<p style="font-size:11px;margin:1px 0;">' + ipf.name + ': <span style="color:#aaa;">' + Math.round(ipf.support) + '%</span>';
+                html += ' <span style="display:inline-block;width:' + barW + 'px;height:6px;background:' + _getFactionColorCSS(pfid) + ';vertical-align:middle;border-radius:2px;"></span></p>';
+            }
+            // Show active crisis
+            if (pol.crisisActive) {
+                html += '<p style="color:#ff8844;font-size:11px;">⚠ ' + pol.crisisActive.name + ' — ' + Math.round(pol.crisisActive.remaining / 10) + 's remaining</p>';
+            }
             html += '</div>';
         }
 
